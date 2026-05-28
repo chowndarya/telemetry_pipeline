@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package telemetry;
+
+option go_package = "./grpc_proto;grpc_proto";
+// TelemetryService defines the gRPC service for sending telemetry data
+service TelemetryService {
+    // SendTelemetry sends a telemetry data point
+    rpc SendTelemetry (TelemetryRequest) returns (TelemetryResponse);
+}
+
+// TelemetryRequest represents a telemetry data message
+message TelemetryRequest {
+    string json_payload = 1;    // JSON string of telemetry data
+    int64 timestamp = 2;        // Timestamp in nanoseconds
+}
+
+// TelemetryResponse represents the response from the server
+message TelemetryResponse {
+    bool success = 1;
+    string message = 2;
+}
