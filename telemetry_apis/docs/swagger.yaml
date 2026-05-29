@@ -1,0 +1,87 @@
+basePath: /api/v1
+definitions:
+  main.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  main.TelemetryEntry:
+    properties:
+      device:
+        type: string
+      gpu_id:
+        type: string
+      metric_name:
+        type: string
+      timestamp:
+        type: string
+      value:
+        type: number
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: API to query GPU telemetry data stored in InfluxDB 3.
+  title: GPU Telemetry API
+  version: "1.0"
+paths:
+  /gpus:
+    get:
+      description: Get list of unique GPU IDs from telemetry data
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: List GPUs
+      tags:
+      - GPUs
+  /gpus/{id}/telemetry:
+    get:
+      description: Get telemetry data for a specific GPU ordered by time, optionally
+        filtered by start_time and end_time (RFC3339 format)
+      parameters:
+      - description: GPU ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Start time (inclusive), RFC3339 format e.g. 2026-01-01T00:00:00Z
+        in: query
+        name: start_time
+        type: string
+      - description: End time (inclusive), RFC3339 format e.g. 2026-12-31T23:59:59Z
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.TelemetryEntry'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get telemetry by GPU ID
+      tags:
+      - GPUs
+swagger: "2.0"

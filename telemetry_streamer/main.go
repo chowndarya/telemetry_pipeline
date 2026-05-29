@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -65,7 +64,7 @@ func processCSVAndSend(csvFilePath string, client pb.TelemetryServiceClient) err
 	reader := csv.NewReader(bufio.NewReader(file))
 
 	// Read header line to get field names
-	headers, err := reader.Read()
+	_, err = reader.Read()
 	if err != nil {
 		return fmt.Errorf("failed to read CSV header: %w", err)
 	}
@@ -79,29 +78,41 @@ func processCSVAndSend(csvFilePath string, client pb.TelemetryServiceClient) err
 			return fmt.Errorf("error reading CSV record: %w", err)
 		}
 
-		// Map CSV record to a map[string]string using headers
-		dataMap := make(map[string]string)
-		for i, header := range headers {
-			if i < len(record) {
-				dataMap[header] = record[i]
-			}
-		}
+		// Map CSV columns to variables by header index
+		// Expected headers: timestamp, metric_name, gpu_id, device, uuid, modelName, modelName, modelName, modelName, namespace, value, labels_raw
+		// We ignore CSV timestamp and generate current time instead
 
-		// Convert map to JSON
-		jsonData, err := json.Marshal(dataMap)
-		if err != nil {
-			log.Printf("Failed to marshal JSON: %v", err)
+		// Defensive check for record length
+		if len(record) < 12 {
+			log.Printf("Skipping incomplete record: %v", record)
 			continue
 		}
 
+		// Parse value field to float64
+		val, err := strconv.ParseFloat(record[10], 64)
+		if err != nil {
+			log.Printf("Invalid value field '%s': %v", record[10], err)
+			continue
+		}
+
+		// Collect modelName fields (indexes 5 to 8)
+		modelNames := record[5:9]
+
+		// Create TelemetryRequest with current timestamp
+		req := &pb.TelemetryRequest{
+			Timestamp:  time.Now().UnixNano(),
+			MetricName: record[1],
+			GpuId:      record[2],
+			Device:     record[3],
+			Uuid:       record[4],
+			ModelName:  modelNames,
+			Namespace:  record[9],
+			Value:      val,
+			LabelsRaw:  record[11],
+		}
 		// Send JSON data to gRPC service
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
-		req := &pb.TelemetryRequest{
-			JsonPayload: string(jsonData),
-			Timestamp:   time.Now().UnixNano(), // Use current time as timestamp
-		}
 
 		_, err = client.SendTelemetry(ctx, req)
 		if err != nil {
@@ -109,7 +120,7 @@ func processCSVAndSend(csvFilePath string, client pb.TelemetryServiceClient) err
 			continue
 		}
 
-		log.Printf("Sent telemetry data: %s", jsonData)
+		log.Printf("Sent telemetry data: %s", req.String())
 	}
 
 	return nil

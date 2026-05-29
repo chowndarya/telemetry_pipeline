@@ -13,16 +13,21 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	pb "github.com/chowndarya/telemetry_pipeline/grpc_proto" // Replace with actual import path of generated proto package
+	pb "github.com/chowndarya/telemetry_pipeline/grpc_proto" // replace with actual import path
 )
 
-// message represents a telemetry message stored in the queue.
 type message struct {
-	jsonPayload string
-	timestamp   int64
+	Timestamp  int64
+	MetricName string
+	GpuId      string
+	Device     string
+	Uuid       string
+	ModelName  []string
+	Namespace  string
+	Value      float64
+	LabelsRaw  string
 }
 
-// TelemetryQueueServer implements the TelemetryService gRPC server.
 type TelemetryQueueServer struct {
 	pb.UnimplementedTelemetryServiceServer
 
@@ -32,14 +37,12 @@ type TelemetryQueueServer struct {
 	closed   bool
 }
 
-// NewTelemetryQueueServer creates a new TelemetryQueueServer instance.
 func NewTelemetryQueueServer() *TelemetryQueueServer {
 	s := &TelemetryQueueServer{}
 	s.cond = sync.NewCond(&s.mu)
 	return s
 }
 
-// SendTelemetry enqueues telemetry messages sent by producers (streamers).
 func (s *TelemetryQueueServer) SendTelemetry(ctx context.Context, req *pb.TelemetryRequest) (*pb.TelemetryResponse, error) {
 	if req == nil {
 		return &pb.TelemetryResponse{
@@ -60,14 +63,20 @@ func (s *TelemetryQueueServer) SendTelemetry(ctx context.Context, req *pb.Teleme
 
 	// Append the message to the queue buffer
 	s.messages = append(s.messages, message{
-		jsonPayload: req.JsonPayload,
-		timestamp:   req.Timestamp,
+		Timestamp:  req.Timestamp,
+		MetricName: req.MetricName,
+		GpuId:      req.GpuId,
+		Device:     req.Device,
+		Uuid:       req.Uuid,
+		ModelName:  req.ModelName,
+		Namespace:  req.Namespace,
+		Value:      req.Value,
+		LabelsRaw:  req.LabelsRaw,
 	})
 
-	// Notify any waiting consumers (if implemented)
 	s.cond.Signal()
 
-	log.Printf("Enqueued telemetry message with timestamp %d", req.Timestamp)
+	log.Printf("Enqueued telemetry message with timestamp %d, metric %s", req.Timestamp, req.MetricName)
 
 	return &pb.TelemetryResponse{
 		Success: true,
@@ -75,7 +84,50 @@ func (s *TelemetryQueueServer) SendTelemetry(ctx context.Context, req *pb.Teleme
 	}, nil
 }
 
-// StartGRPCServer starts the gRPC server without TLS and supports graceful shutdown.
+func (s *TelemetryQueueServer) CollectTelemetry(req *pb.TelemetryRequest, stream pb.TelemetryService_CollectTelemetryServer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for {
+		// Wait for messages to be available or server to be closed
+		for len(s.messages) == 0 && !s.closed {
+			s.cond.Wait()
+		}
+
+		// If server is closed and no messages left, end stream
+		if s.closed && len(s.messages) == 0 {
+			return nil
+		}
+
+		// Pop the first message from the queue
+		msg := s.messages[0]
+		s.messages = s.messages[1:]
+
+		s.mu.Unlock()
+
+		// Convert internal message to protobuf TelemetryRequest
+		resp := &pb.TelemetryRequest{
+			Timestamp:  msg.Timestamp,
+			MetricName: msg.MetricName,
+			GpuId:      msg.GpuId,
+			Device:     msg.Device,
+			Uuid:       msg.Uuid,
+			ModelName:  msg.ModelName,
+			Namespace:  msg.Namespace,
+			Value:      msg.Value,
+			LabelsRaw:  msg.LabelsRaw,
+		}
+
+		// Send the telemetry message to the client stream
+		if err := stream.Send(resp); err != nil {
+			s.mu.Lock()
+			return err
+		}
+
+		s.mu.Lock()
+	}
+}
+
 func StartGRPCServer(address string) error {
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
@@ -87,10 +139,8 @@ func StartGRPCServer(address string) error {
 	queueServer := NewTelemetryQueueServer()
 	pb.RegisterTelemetryServiceServer(grpcServer, queueServer)
 
-	// Enable reflection for debugging and tooling support
 	reflection.Register(grpcServer)
 
-	// Setup graceful shutdown on SIGINT/SIGTERM
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
@@ -104,7 +154,6 @@ func StartGRPCServer(address string) error {
 	<-stop
 	log.Println("Shutting down gRPC server...")
 
-	// Mark server as closed to reject new requests
 	queueServer.mu.Lock()
 	queueServer.closed = true
 	queueServer.mu.Unlock()
@@ -116,9 +165,7 @@ func StartGRPCServer(address string) error {
 }
 
 func main() {
-	// Read server address from environment variable or use default
 	address := ":50051"
-
 	if err := StartGRPCServer(address); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

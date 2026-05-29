@@ -7,15 +7,21 @@ option go_package = "./grpc_proto;grpc_proto";
 service TelemetryService {
     // SendTelemetry sends a telemetry data point
     rpc SendTelemetry (TelemetryRequest) returns (TelemetryResponse);
+    rpc CollectTelemetry (TelemetryRequest) returns (stream TelemetryRequest);
 }
 
-// TelemetryRequest represents a telemetry data message
 message TelemetryRequest {
-    string json_payload = 1;    // JSON string of telemetry data
-    int64 timestamp = 2;        // Timestamp in nanoseconds
+    int64 timestamp = 1;        // Timestamp in nanoseconds, set by streamer
+    string metric_name = 2;
+    string gpu_id = 3;
+    string device = 4;
+    string uuid = 5;
+    repeated string modelName = 6; // repeated for multiple modelName fields
+    string namespace = 7;
+    double value = 8;
+    string labels_raw = 9;
 }
 
-// TelemetryResponse represents the response from the server
 message TelemetryResponse {
     bool success = 1;
     string message = 2;

@@ -21,11 +21,17 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// TelemetryRequest represents a telemetry data message
 type TelemetryRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	JsonPayload   string                 `protobuf:"bytes,1,opt,name=json_payload,json=jsonPayload,proto3" json:"json_payload,omitempty"` // JSON string of telemetry data
-	Timestamp     int64                  `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`                       // Timestamp in nanoseconds
+	Timestamp     int64                  `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"` // Timestamp in nanoseconds, set by streamer
+	MetricName    string                 `protobuf:"bytes,2,opt,name=metric_name,json=metricName,proto3" json:"metric_name,omitempty"`
+	GpuId         string                 `protobuf:"bytes,3,opt,name=gpu_id,json=gpuId,proto3" json:"gpu_id,omitempty"`
+	Device        string                 `protobuf:"bytes,4,opt,name=device,proto3" json:"device,omitempty"`
+	Uuid          string                 `protobuf:"bytes,5,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	ModelName     []string               `protobuf:"bytes,6,rep,name=modelName,proto3" json:"modelName,omitempty"` // repeated for multiple modelName fields
+	Namespace     string                 `protobuf:"bytes,7,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Value         float64                `protobuf:"fixed64,8,opt,name=value,proto3" json:"value,omitempty"`
+	LabelsRaw     string                 `protobuf:"bytes,9,opt,name=labels_raw,json=labelsRaw,proto3" json:"labels_raw,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -60,13 +66,6 @@ func (*TelemetryRequest) Descriptor() ([]byte, []int) {
 	return file_telemetry_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *TelemetryRequest) GetJsonPayload() string {
-	if x != nil {
-		return x.JsonPayload
-	}
-	return ""
-}
-
 func (x *TelemetryRequest) GetTimestamp() int64 {
 	if x != nil {
 		return x.Timestamp
@@ -74,7 +73,62 @@ func (x *TelemetryRequest) GetTimestamp() int64 {
 	return 0
 }
 
-// TelemetryResponse represents the response from the server
+func (x *TelemetryRequest) GetMetricName() string {
+	if x != nil {
+		return x.MetricName
+	}
+	return ""
+}
+
+func (x *TelemetryRequest) GetGpuId() string {
+	if x != nil {
+		return x.GpuId
+	}
+	return ""
+}
+
+func (x *TelemetryRequest) GetDevice() string {
+	if x != nil {
+		return x.Device
+	}
+	return ""
+}
+
+func (x *TelemetryRequest) GetUuid() string {
+	if x != nil {
+		return x.Uuid
+	}
+	return ""
+}
+
+func (x *TelemetryRequest) GetModelName() []string {
+	if x != nil {
+		return x.ModelName
+	}
+	return nil
+}
+
+func (x *TelemetryRequest) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *TelemetryRequest) GetValue() float64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *TelemetryRequest) GetLabelsRaw() string {
+	if x != nil {
+		return x.LabelsRaw
+	}
+	return ""
+}
+
 type TelemetryResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -131,15 +185,25 @@ var File_telemetry_proto protoreflect.FileDescriptor
 
 const file_telemetry_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftelemetry.proto\x12\ttelemetry\"S\n" +
-	"\x10TelemetryRequest\x12!\n" +
-	"\fjson_payload\x18\x01 \x01(\tR\vjsonPayload\x12\x1c\n" +
-	"\ttimestamp\x18\x02 \x01(\x03R\ttimestamp\"G\n" +
+	"\x0ftelemetry.proto\x12\ttelemetry\"\x85\x02\n" +
+	"\x10TelemetryRequest\x12\x1c\n" +
+	"\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x1f\n" +
+	"\vmetric_name\x18\x02 \x01(\tR\n" +
+	"metricName\x12\x15\n" +
+	"\x06gpu_id\x18\x03 \x01(\tR\x05gpuId\x12\x16\n" +
+	"\x06device\x18\x04 \x01(\tR\x06device\x12\x12\n" +
+	"\x04uuid\x18\x05 \x01(\tR\x04uuid\x12\x1c\n" +
+	"\tmodelName\x18\x06 \x03(\tR\tmodelName\x12\x1c\n" +
+	"\tnamespace\x18\a \x01(\tR\tnamespace\x12\x14\n" +
+	"\x05value\x18\b \x01(\x01R\x05value\x12\x1d\n" +
+	"\n" +
+	"labels_raw\x18\t \x01(\tR\tlabelsRaw\"G\n" +
 	"\x11TelemetryResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2^\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xae\x01\n" +
 	"\x10TelemetryService\x12J\n" +
-	"\rSendTelemetry\x12\x1b.telemetry.TelemetryRequest\x1a\x1c.telemetry.TelemetryResponseB\x19Z\x17./grpc_proto;grpc_protob\x06proto3"
+	"\rSendTelemetry\x12\x1b.telemetry.TelemetryRequest\x1a\x1c.telemetry.TelemetryResponse\x12N\n" +
+	"\x10CollectTelemetry\x12\x1b.telemetry.TelemetryRequest\x1a\x1b.telemetry.TelemetryRequest0\x01B\x19Z\x17./grpc_proto;grpc_protob\x06proto3"
 
 var (
 	file_telemetry_proto_rawDescOnce sync.Once
@@ -160,9 +224,11 @@ var file_telemetry_proto_goTypes = []any{
 }
 var file_telemetry_proto_depIdxs = []int32{
 	0, // 0: telemetry.TelemetryService.SendTelemetry:input_type -> telemetry.TelemetryRequest
-	1, // 1: telemetry.TelemetryService.SendTelemetry:output_type -> telemetry.TelemetryResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	0, // 1: telemetry.TelemetryService.CollectTelemetry:input_type -> telemetry.TelemetryRequest
+	1, // 2: telemetry.TelemetryService.SendTelemetry:output_type -> telemetry.TelemetryResponse
+	0, // 3: telemetry.TelemetryService.CollectTelemetry:output_type -> telemetry.TelemetryRequest
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name

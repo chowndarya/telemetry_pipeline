@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TelemetryService_SendTelemetry_FullMethodName = "/telemetry.TelemetryService/SendTelemetry"
+	TelemetryService_SendTelemetry_FullMethodName    = "/telemetry.TelemetryService/SendTelemetry"
+	TelemetryService_CollectTelemetry_FullMethodName = "/telemetry.TelemetryService/CollectTelemetry"
 )
 
 // TelemetryServiceClient is the client API for TelemetryService service.
@@ -30,6 +31,7 @@ const (
 type TelemetryServiceClient interface {
 	// SendTelemetry sends a telemetry data point
 	SendTelemetry(ctx context.Context, in *TelemetryRequest, opts ...grpc.CallOption) (*TelemetryResponse, error)
+	CollectTelemetry(ctx context.Context, in *TelemetryRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TelemetryRequest], error)
 }
 
 type telemetryServiceClient struct {
@@ -50,6 +52,25 @@ func (c *telemetryServiceClient) SendTelemetry(ctx context.Context, in *Telemetr
 	return out, nil
 }
 
+func (c *telemetryServiceClient) CollectTelemetry(ctx context.Context, in *TelemetryRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TelemetryRequest], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &TelemetryService_ServiceDesc.Streams[0], TelemetryService_CollectTelemetry_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[TelemetryRequest, TelemetryRequest]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TelemetryService_CollectTelemetryClient = grpc.ServerStreamingClient[TelemetryRequest]
+
 // TelemetryServiceServer is the server API for TelemetryService service.
 // All implementations must embed UnimplementedTelemetryServiceServer
 // for forward compatibility.
@@ -58,6 +79,7 @@ func (c *telemetryServiceClient) SendTelemetry(ctx context.Context, in *Telemetr
 type TelemetryServiceServer interface {
 	// SendTelemetry sends a telemetry data point
 	SendTelemetry(context.Context, *TelemetryRequest) (*TelemetryResponse, error)
+	CollectTelemetry(*TelemetryRequest, grpc.ServerStreamingServer[TelemetryRequest]) error
 	mustEmbedUnimplementedTelemetryServiceServer()
 }
 
@@ -70,6 +92,9 @@ type UnimplementedTelemetryServiceServer struct{}
 
 func (UnimplementedTelemetryServiceServer) SendTelemetry(context.Context, *TelemetryRequest) (*TelemetryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendTelemetry not implemented")
+}
+func (UnimplementedTelemetryServiceServer) CollectTelemetry(*TelemetryRequest, grpc.ServerStreamingServer[TelemetryRequest]) error {
+	return status.Errorf(codes.Unimplemented, "method CollectTelemetry not implemented")
 }
 func (UnimplementedTelemetryServiceServer) mustEmbedUnimplementedTelemetryServiceServer() {}
 func (UnimplementedTelemetryServiceServer) testEmbeddedByValue()                          {}
@@ -110,6 +135,17 @@ func _TelemetryService_SendTelemetry_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TelemetryService_CollectTelemetry_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(TelemetryRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(TelemetryServiceServer).CollectTelemetry(m, &grpc.GenericServerStream[TelemetryRequest, TelemetryRequest]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TelemetryService_CollectTelemetryServer = grpc.ServerStreamingServer[TelemetryRequest]
+
 // TelemetryService_ServiceDesc is the grpc.ServiceDesc for TelemetryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -122,6 +158,12 @@ var TelemetryService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TelemetryService_SendTelemetry_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "CollectTelemetry",
+			Handler:       _TelemetryService_CollectTelemetry_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "telemetry.proto",
 }
