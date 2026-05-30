@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-collector
+  namespace: gpu-telemetry
+spec:
+  replicas: 2 # Demonstrating scalability
+  selector:
+    matchLabels:
+      app: telemetry-collector
+  template:
+    metadata:
+      labels:
+        app: telemetry-collector
+    spec:
+      containers:
+      - name: collector
+        image: localhost/telemetry-collector:latest
+        imagePullPolicy: Never
+        envFrom:
+        - configMapRef:
+            name: telemetry-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-streamer
+  namespace: gpu-telemetry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemetry-streamer
+  template:
+    metadata:
+      labels:
+        app: telemetry-streamer
+    spec:
+      containers:
+      - name: streamer
+        image: localhost/telemetry-streamer:latest
+        imagePullPolicy: Never
+        envFrom:
+        - configMapRef:
+            name: telemetry-config

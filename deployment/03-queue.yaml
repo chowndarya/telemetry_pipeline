@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-queue
+  namespace: gpu-telemetry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemetry-queue
+  template:
+    metadata:
+      labels:
+        app: telemetry-queue
+    spec:
+      containers:
+      - name: queue
+        image: localhost/telemetry-queue:latest
+        imagePullPolicy: Never # Crucial for KinD
+        ports:
+        - containerPort: 50051
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry-queue
+  namespace: gpu-telemetry
+spec:
+  selector:
+    app: telemetry-queue
+  ports:
+  - port: 50051
+    targetPort: 50051

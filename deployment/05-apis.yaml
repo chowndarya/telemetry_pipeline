@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-apis
+  namespace: gpu-telemetry
+spec:
+  selector:
+    matchLabels:
+      app: telemetry-apis
+  template:
+    metadata:
+      labels:
+        app: telemetry-apis
+    spec:
+      containers:
+      - name: apis
+        image: localhost/telemetry-apis:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: telemetry-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry-apis
+  namespace: gpu-telemetry
+spec:
+  type: NodePort
+  selector:
+    app: telemetry-apis
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30080 # Access via localhost:30080 if Kind is mapped

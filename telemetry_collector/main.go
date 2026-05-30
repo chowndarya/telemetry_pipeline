@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	influxdb2 "github.com/influxdata/influxdb-client-go"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"google.golang.org/grpc"
 
 	pb "github.com/chowndarya/telemetry_pipeline/grpc_proto"

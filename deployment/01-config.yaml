@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telemetry-config
+  namespace: gpu-telemetry
+data:
+  INFLUXDB_URL: "http://influxdb:8181"
+  INFLUXDB_ORG: "ai_org"
+  INFLUXDB_BUCKET: "tel_db"
+  INFLUXDB_TOKEN: "apiv3_Y6QmczU2nRBzBMUFz9WMDkZc_S6PlzTe8Fs2OF2wg-uzjJmhRAqCLkQw8PEfuyO-NZm5y2dNsDpzIT0qRTVsUw"
+  GRPC_SERVER_ADDR: "telemetry-queue:50051"
+  CSV_FILE_PATH: "/root/metrics.csv"
