@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.collector.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.collector.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.collector.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.collector.name }}
+    spec:
+      initContainers:
+        - name: wait-for-influxdb
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              until curl -fsS http://influxdb:8181/health >/dev/null; do
+                echo "waiting for influxdb..."
+                sleep 2
+              done
+              echo "influxdb ready"
+      containers:
+      - name: collector
+        image: "{{ .Values.image.registry }}/{{ .Values.collector.image }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        envFrom:
+        - configMapRef:
+            name: telemetry-config
+        env:
+        - name: INFLUXDB_URL
+          value: "http://influxdb:8181"
+        - name: INFLUXDB_ORG
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-auth
+              key: org
+        - name: INFLUXDB_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-auth
+              key: bucket
+        - name: INFLUXDB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-auth
+              key: admin-token

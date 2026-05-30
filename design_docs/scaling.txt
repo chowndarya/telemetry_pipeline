@@ -1,0 +1,46 @@
+### Scaling Model
+
+| Component  | Replicas | Pattern              | Production equivalent              |
+|------------|----------|----------------------|------------------------------------|
+| Streamer   | 10       | Per-source agent     | DaemonSet — one pod per node       |
+| Queue      | 1        | Decoupling broker    | NATS JetStream / Kafka cluster     |
+| Collector  | 3        | Competing consumers  | Stateless worker pool              |
+| InfluxDB   | 1        | Time-series store    | InfluxDB Cloud / Enterprise        |
+
+### Design Rationale
+
+- **Streamer scales with data sources.** In production this is a DaemonSet scraping per-node metrics; replica count = cluster size. Here, 10 replicas simulate 10 nodes — each tags emissions with `source_node=<pod_hostname>` so contributions are distinguishable in InfluxDB.
+- **Collector pool is sized independently.** Writing to InfluxDB is lighter than scraping, so 3 collectors are sufficient. The queue absorbs producer–consumer asymmetry.
+- **Queue is the decoupling boundary.** Producers and consumers scale on independent axes without coordination.
+- **gRPC load balancing via headless Service.** Collectors use `dns:///` resolver with round-robin so long-lived streams distribute across queue replicas — `ClusterIP` would pin all streams to one backend.
+- **`initContainer` ordering.** Streamer waits for queue, collector waits for queue, API waits for InfluxDB — survives restarts and reschedules, not just first install.
+
+### Verification (live demos)
+
+```bash
+# 1. All 10 streamers are emitting
+flux: distinct(column: "source_node")          → 10 unique pods
+
+# 2. Collector pool balanced
+flux: group by "collector_pod" |> count()      → ~equal counts across 3
+
+# 3. Throughput scales linearly
+kubectl scale deploy/streamer --replicas=20    → write rate ~2×
+
+# 4. Resilience
+kubectl delete pod -l app=streamer | head -1   → brief dip, full recovery
+
+Known Limitations (and what production would do)
+
+Queue is a single replica, in-memory. Restart loses in-flight messages. Production: replace with NATS JetStream for persistent, replicated, competing-consumer delivery.
+Streamer reads from CSV, not real nodes. Production: scrape DCGM exporter / node-exporter on localhost, deployed as a DaemonSet — naturally uniquely-sourced data, no duplication.
+InfluxDB is OSS single-node. Production: InfluxDB Cloud, Enterprise clustering, or app-level sharding by org/bucket.
+No leader election in streamers. With CSV input, all 10 replicas would read the same rows. Mitigated here by per-pod tagging; production solves this naturally via per-node scraping.
+No backpressure / DLQ. If InfluxDB is slow, the queue buffer can grow unbounded. Production needs flow control and a dead-letter path for poisoned messages.
+
+Why this design supports HA
+
+Stateless producers and consumers — any pod can be killed and rescheduled without coordination
+Decoupled tiers — failure in one tier doesn't cascade (queue absorbs streamer failures; collector retries absorb InfluxDB blips)
+Idempotent writes — InfluxDB's (measurement, tag_set, timestamp) primary key makes duplicate writes safe
+Health probes everywhere — k8s auto-restarts unhealthy pods; readiness probes prevent traffic to not-ready pods

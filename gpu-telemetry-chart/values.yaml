@@ -1,0 +1,52 @@
+namespace: gpu-telemetry
+
+image:
+  registry: localhost
+  pullPolicy: Never
+  tag: latest
+
+influxdb:
+  name: influxdb
+  image: influxdb:2.7
+  port: 8181
+
+  auth:
+    username: admin
+    password: admin12345                                  # change for prod
+    org: ai_org
+    bucket: tel_db
+    retention: 30d
+    adminToken: my-super-secret-admin-token-change-me     # change for prod
+
+  persistence:
+    storageClass: standard      # KIND default; adjust if needed
+    size: 5Gi
+
+queue:
+  name: telemetry-queue
+  image: telemetry-queue
+  port: 50051
+  replicas: 1
+
+collector:
+  name: telemetry-collector
+  image: telemetry-collector
+  replicas: 1
+
+streamer:
+  name: telemetry-streamer
+  image: telemetry-streamer
+  replicas: 1
+  csvPath: "/root/metrics.csv"
+  sleepsec: 1200
+
+api:
+  name: telemetry-apis
+  image: telemetry-apis
+  port: 8080
+  measurement: gpu_metrics
+  serviceType: ClusterIP
+
+init:
+  name: telemetry-init
+  image: telemetry-init

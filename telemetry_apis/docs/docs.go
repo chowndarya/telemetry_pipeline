@@ -49,14 +49,14 @@ const docTemplate = `{
         },
         "/gpus/{id}/telemetry": {
             "get": {
-                "description": "Get telemetry data for a specific GPU ordered by time, optionally filtered by start_time and end_time (RFC3339 format)",
+                "description": "Get telemetry data for a specific GPU between start_time and end_time (RFC3339).\nIf either timestamp is omitted, defaults to the last 1 hour.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "GPUs"
                 ],
-                "summary": "Get telemetry by GPU ID",
+                "summary": "Get GPU Telemetry",
                 "parameters": [
                     {
                         "type": "string",
@@ -67,13 +67,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Start time (inclusive), RFC3339 format e.g. 2026-01-01T00:00:00Z",
+                        "description": "Start time in RFC3339 format (e.g. 2026-05-30T10:00:00Z)",
                         "name": "start_time",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End time (inclusive), RFC3339 format e.g. 2026-12-31T23:59:59Z",
+                        "description": "End time in RFC3339 format (e.g. 2026-05-30T11:00:00Z)",
                         "name": "end_time",
                         "in": "query"
                     }
@@ -143,7 +143,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "GPU Telemetry API",
-	Description:      "API to query GPU telemetry data stored in InfluxDB 3.",
+	Description:      "API to query GPU telemetry data stored in InfluxDB 2.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

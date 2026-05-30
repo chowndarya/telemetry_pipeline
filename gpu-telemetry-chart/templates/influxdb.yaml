@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.influxdb.name }}-pvc
+  namespace: {{ .Values.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.influxdb.persistence.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.influxdb.persistence.size }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.influxdb.name }}-auth
+  namespace: {{ .Values.namespace }}
+type: Opaque
+stringData:
+  username: {{ .Values.influxdb.auth.username | quote }}
+  password: {{ .Values.influxdb.auth.password | quote }}
+  org: {{ .Values.influxdb.auth.org | quote }}
+  bucket: {{ .Values.influxdb.auth.bucket | quote }}
+  admin-token: {{ .Values.influxdb.auth.adminToken | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.influxdb.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Values.influxdb.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.influxdb.name }}
+    spec:
+      containers:
+      - name: influxdb
+        image: {{ .Values.influxdb.image }}
+        ports:
+        - containerPort: {{ .Values.influxdb.port }}
+          name: http
+        env:
+        # Bind HTTP server to custom port
+        - name: INFLUXD_HTTP_BIND_ADDRESS
+          value: ":{{ .Values.influxdb.port }}"
+
+        # One-shot bootstrap on first start
+        - name: DOCKER_INFLUXDB_INIT_MODE
+          value: "setup"
+        - name: DOCKER_INFLUXDB_INIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.influxdb.name }}-auth
+              key: username
+        - name: DOCKER_INFLUXDB_INIT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.influxdb.name }}-auth
+              key: password
+        - name: DOCKER_INFLUXDB_INIT_ORG
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.influxdb.name }}-auth
+              key: org
+        - name: DOCKER_INFLUXDB_INIT_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.influxdb.name }}-auth
+              key: bucket
+        - name: DOCKER_INFLUXDB_INIT_RETENTION
+          value: {{ .Values.influxdb.auth.retention | quote }}
+        - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.influxdb.name }}-auth
+              key: admin-token
+
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/influxdb2
+        - name: config
+          mountPath: /etc/influxdb2
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.influxdb.port }}
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.influxdb.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 15
+
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ .Values.influxdb.name }}-pvc
+      - name: config
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.influxdb.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: {{ .Values.influxdb.name }}
+  ports:
+  - port: {{ .Values.influxdb.port }}
+    targetPort: {{ .Values.influxdb.port }}
+    name: http

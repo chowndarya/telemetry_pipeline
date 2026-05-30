@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telemetry-config
+  namespace: {{ .Values.namespace }}
+data:
+  GRPC_SERVER_ADDR: "{{ .Values.queue.name }}:{{ .Values.queue.port }}"
+  CSV_FILE_PATH: {{ .Values.streamer.csvPath | quote }}
+  SLEEP_DURATION_SECONDS: {{ .Values.streamer.sleepsec | quote }}

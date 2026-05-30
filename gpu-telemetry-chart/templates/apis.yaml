@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.api.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.api.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.api.name }}
+    spec:
+      containers:
+      - name: apis
+        image: "{{ .Values.image.registry }}/{{ .Values.api.image }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.api.port }}
+          name: http
+        envFrom:
+        - configMapRef:
+            name: telemetry-config
+        env:
+        - name: INFLUXDB_URL
+          value: "http://influxdb:8181"
+        - name: INFLUXDB_ORG
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-auth
+              key: org
+        - name: INFLUXDB_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-auth
+              key: bucket
+        - name: INFLUXDB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-auth
+              key: admin-token
+        - name: INFLUXDB_MEASUREMENT
+          value: {{ .Values.api.measurement | default "gpu_metrics" | quote }}
+        - name: SERVER_PORT
+          value: "8080"
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 15
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.api.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  type: {{ .Values.api.serviceType | default "ClusterIP" }}
+  selector:
+    app: {{ .Values.api.name }}
+  ports:
+  - port: {{ .Values.api.port }}
+    targetPort: {{ .Values.api.port }}

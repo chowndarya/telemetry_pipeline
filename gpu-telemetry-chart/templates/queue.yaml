@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.queue.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.queue.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.queue.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.queue.name }}
+    spec:
+      containers:
+      - name: queue
+        image: "{{ .Values.image.registry }}/{{ .Values.queue.image }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.queue.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.queue.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: {{ .Values.queue.name }}
+  ports:
+  - port: {{ .Values.queue.port }}
+    targetPort: {{ .Values.queue.port }}

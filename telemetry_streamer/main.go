@@ -98,6 +98,11 @@ func processCSVAndSend(csvFilePath string, client pb.TelemetryServiceClient) err
 		// Collect modelName fields (indexes 5 to 8)
 		modelNames := record[5:9]
 
+		hostname, _ := os.Hostname() // e.g. "streamer-7f8d9-x4k2p"
+
+		// When emitting each row, tag with the simulated "node"
+		labelsnew := fmt.Sprintf("%s,source_node=%s", record[11], hostname)
+
 		// Create TelemetryRequest with current timestamp
 		req := &pb.TelemetryRequest{
 			Timestamp:  time.Now().UnixNano(),
@@ -108,7 +113,7 @@ func processCSVAndSend(csvFilePath string, client pb.TelemetryServiceClient) err
 			ModelName:  modelNames,
 			Namespace:  record[9],
 			Value:      val,
-			LabelsRaw:  record[11],
+			LabelsRaw:  labelsnew,
 		}
 		// Send JSON data to gRPC service
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

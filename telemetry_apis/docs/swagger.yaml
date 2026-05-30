@@ -23,7 +23,7 @@ info:
   contact:
     email: support@example.com
     name: API Support
-  description: API to query GPU telemetry data stored in InfluxDB 3.
+  description: API to query GPU telemetry data stored in InfluxDB 2.
   title: GPU Telemetry API
   version: "1.0"
 paths:
@@ -48,19 +48,20 @@ paths:
       - GPUs
   /gpus/{id}/telemetry:
     get:
-      description: Get telemetry data for a specific GPU ordered by time, optionally
-        filtered by start_time and end_time (RFC3339 format)
+      description: |-
+        Get telemetry data for a specific GPU between start_time and end_time (RFC3339).
+        If either timestamp is omitted, defaults to the last 1 hour.
       parameters:
       - description: GPU ID
         in: path
         name: id
         required: true
         type: string
-      - description: Start time (inclusive), RFC3339 format e.g. 2026-01-01T00:00:00Z
+      - description: Start time in RFC3339 format (e.g. 2026-05-30T10:00:00Z)
         in: query
         name: start_time
         type: string
-      - description: End time (inclusive), RFC3339 format e.g. 2026-12-31T23:59:59Z
+      - description: End time in RFC3339 format (e.g. 2026-05-30T11:00:00Z)
         in: query
         name: end_time
         type: string
@@ -81,7 +82,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/main.ErrorResponse'
-      summary: Get telemetry by GPU ID
+      summary: Get GPU Telemetry
       tags:
       - GPUs
 swagger: "2.0"
