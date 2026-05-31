@@ -40,6 +40,43 @@ func parseLabelsRaw(labelsRaw string) map[string]string {
 	return tags
 }
 
+func buildPointFromTelemetry(msg *pb.TelemetryRequest, tableName string) (string, map[string]string, map[string]interface{}, time.Time) {
+	tags := make(map[string]string)
+	if msg.LabelsRaw != "" {
+		tags = parseLabelsRaw(msg.LabelsRaw)
+	}
+
+	if msg.GpuId != "" {
+		tags["gpu_id"] = msg.GpuId
+	}
+	if msg.Device != "" {
+		tags["device"] = msg.Device
+	}
+	if msg.Uuid != "" {
+		tags["uuid"] = msg.Uuid
+	}
+	if msg.Namespace != "" {
+		tags["namespace"] = msg.Namespace
+	}
+	if len(msg.ModelName) > 0 {
+		tags["modelName"] = strings.Join(msg.ModelName, ",")
+	}
+
+	fields := map[string]interface{}{
+		"metric_name": msg.MetricName,
+		"value":       msg.Value,
+	}
+
+	var ts time.Time
+	if msg.Timestamp != 0 {
+		ts = time.Unix(0, msg.Timestamp)
+	} else {
+		ts = time.Now()
+	}
+
+	return tableName, tags, fields, ts
+}
+
 func main() {
 	// InfluxDB connection parameters from environment variables
 	influxURL := os.Getenv("INFLUXDB_URL")

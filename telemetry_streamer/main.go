@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -129,4 +130,32 @@ func processCSVAndSend(csvFilePath string, client pb.TelemetryServiceClient) err
 	}
 
 	return nil
+}
+
+// Add this to your streamer code
+func mapRecordToRequest(record []string, hostname string) (*pb.TelemetryRequest, error) {
+	if len(record) < 12 {
+		return nil, fmt.Errorf("incomplete record")
+	}
+	val, err := strconv.ParseFloat(record[10], 64)
+	if err != nil {
+		return nil, err
+	}
+
+	// Explicitly check for non-finite values
+	if math.IsNaN(val) || math.IsInf(val, 0) {
+		return nil, fmt.Errorf("value is not a finite number: %f", val)
+	}
+
+	return &pb.TelemetryRequest{
+		Timestamp:  time.Now().UnixNano(),
+		MetricName: record[1],
+		GpuId:      record[2],
+		Device:     record[3],
+		Uuid:       record[4],
+		ModelName:  record[5:9],
+		Namespace:  record[9],
+		Value:      val,
+		LabelsRaw:  fmt.Sprintf("%s,source_node=%s", record[11], hostname),
+	}, nil
 }
