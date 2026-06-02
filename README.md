@@ -11,19 +11,19 @@ A horizontally scalable, available, and elastic telemetry pipeline that ingests 
 
 The pipeline is designed considering GPU operations use cases such as detecting GPU failures and informing AI workload checkpoint migration decisions — scenarios where historical trend analysis will be needed
 
-#### In Scope
-* **Custom message queue implementation:** Built natively without external message brokers like Kafka, RabbitMQ, or NATS.
-* **Service components:** Full delivery of both Producer (streamer) and Consumer (collector) services.
-* **Storage and access:** Time-series persistence pipeline coupled with a historical query API.
-* **Deployment infrastructure:** Helm-based deployment automated for a local Kubernetes cluster (`kind` on macOS).
-* **Code quality:** Clean code practices, structured logging, graceful lifecycle management, and comprehensive unit-test coverage for core logic.
+<h5><b>In Scope</b></h5>
+* Custom message queue implementation:** Built natively without external message brokers like Kafka, RabbitMQ, or NATS.
+* Service components: Full delivery of both Producer (streamer) and Consumer (collector) services.
+* Storage and access: Time-series persistence pipeline coupled with a historical query API.
+* Deployment infrastructure: Helm-based deployment automated for a local Kubernetes cluster (`kind` on macOS).
+* Code quality: Clean code practices, structured logging, graceful lifecycle management, and comprehensive unit-test coverage for core logic.
 
-#### Out of Scope (Deliberate)
-* **Real DCGM integration:** The streamer replays a static CSV dataset with refreshed timestamps to simulate live GPU metric emission.
-* **UI and dashboards:** Graphical visualizations are omitted; a read-only REST API is sufficient for this exercise.
-* **Advanced deployment topologies:** Multi-cluster or multi-region deployments are excluded.
-* **Security protocols:** Authentication and authorization mechanisms are bypassed on the data plane.
-* **Quantitative load testing (functional correctness was prioritized; load characterization is listed in Section 8 as next step).
+<h5><b>Out of Scope (Deliberate) </b></h5>
+* Real DCGM integration: The streamer replays a static CSV dataset with refreshed timestamps to simulate live GPU metric emission.
+* UI and dashboards: Graphical visualizations are omitted; a read-only REST API is sufficient for this exercise.
+* Advanced deployment topologies: Multi-cluster or multi-region deployments are excluded.
+* Security protocols: Authentication and authorization mechanisms are bypassed on the data plane.
+* Quantitative load testing (functional correctness was prioritized; load characterization is listed in Section 8 as next step).
 
 Non-functional Targets
 
@@ -111,15 +111,15 @@ flowchart LR
 
 2.3 Why this shape?
 
-Producer/consumer decoupling via gRPC server: streamers and collectors have independent lifecycles and scale independently. A streamer pod restart doesn't disrupt collectors and vice versa.
+* Producer/consumer decoupling via gRPC server: streamers and collectors have independent lifecycles and scale independently. A streamer pod restart doesn't disrupt collectors and vice versa.
 
-Single queue replica (for now): simpler reasoning about ordering and pending state. Production HA path is documented in Section 8.
+* Single queue replica (for now): simpler reasoning about ordering and pending state. Production HA path is documented in Section 8.
 
-Stateless producers/consumers: only the queue and InfluxDB are stateful. Adding/removing streamer or collector replicas requires no coordination.
+* Stateless producers/consumers: only the queue and InfluxDB are stateful. Adding/removing streamer or collector replicas requires no coordination.
 
-At-least-once + idempotent sink: InfluxDB writes are idempotent on (measurement, tag-set, timestamp), so duplicate processing during requeue is harmless. This is what makes at-least-once cheap in this system.
+* At-least-once + idempotent sink: InfluxDB writes are idempotent on (measurement, tag-set, timestamp), so duplicate processing during requeue is harmless. This is what makes at-least-once cheap in this system.
 
-Init containers enforce startup ordering: streamers wait on the queue's readiness before sending; collectors wait on InfluxDB readiness before consuming. This avoids a thundering-herd of failed RPCs at cluster bootstrap and removes flakiness from the new install experience.
+* Init containers enforce startup ordering: streamers wait on the queue's readiness before sending; collectors wait on InfluxDB readiness before consuming. This avoids a thundering-herd of failed RPCs at cluster bootstrap and removes flakiness from the new install experience.
 
 
 <details><summary><b><h2>3. Component deep Breakdown</h2></b></summary>
@@ -348,11 +348,11 @@ Why custom Go won:
 
 Future transformation needs. A production collector frequently needs in-flight enrichment that doesn't fit cleanly into Telegraf's input/processor/output plugin model. Concrete examples for this domain:
 
-Joining GPU metrics with Kubernetes pod metadata (which workload owns this GPU at this timestamp?)
-Computing derived metrics (e.g., 5-minute rolling utilization) before storage
-Filtering by namespace allowlist for multi-tenant isolation
-Mapping modelName to workload SLA tier for downstream prioritization
-Each of these is awkward in Telegraf (custom plugins must be written in Go anyway, then loaded into Telegraf's runtime) and natural in a standalone Go service.
+* Joining GPU metrics with Kubernetes pod metadata (which workload owns this GPU at this timestamp?)
+* Computing derived metrics (e.g., 5-minute rolling utilization) before storage
+* Filtering by namespace allowlist for multi-tenant isolation
+* Mapping modelName to workload SLA tier for downstream prioritization
+* Each of these is awkward in Telegraf (custom plugins must be written in Go anyway, then loaded into Telegraf's runtime) and natural in a standalone Go service.
 
 Ack discipline. The at-least-once contract requires precise control over when the ack RPC fires relative to the InfluxDB write. Telegraf's processor pipeline is asynchronous and batched; threading ack metadata through it cleanly is non-trivial. A purpose-built service makes the ordering explicit and testable.
 
@@ -423,9 +423,9 @@ type TelemetryQueueServer struct {
 The locking discipline:
 
 
-All mutations to messages, pending, or closed happen under mu.
-cond.Wait() is called only from inside a held mu (standard Go cond-var pattern).
-The lock is released before any network I/O (stream.Send) or disk I/O (BoltDB writes that aren't on the critical enqueue path), so other goroutines can make progress.
+*All mutations to messages, pending, or closed happen under mu.
+*cond.Wait() is called only from inside a held mu (standard Go cond-var pattern).
+*The lock is released before any network I/O (stream.Send) or disk I/O (BoltDB writes that aren't on the critical enqueue path), so other goroutines can make progress.
 
 Why sync.Cond over channels:
 
@@ -465,9 +465,9 @@ if len(s.messages) >= s.maxQueueSize {
 The streamer handles ResourceExhausted with exponential backoff + full jitter (100ms → 5s, max 5 retries). After exhausting retries, the message is dropped with a counter increment. This means:
 
 
-Bounded memory on the queue (hard cap at QUEUE_MAX_SIZE, default 50,000).
-Bounded retry storms on the streamer (max 5 attempts × jittered backoff).
-Visible saturation via rejectedCount metric and high-water-mark log line at 80% capacity.
+* Bounded memory on the queue (hard cap at QUEUE_MAX_SIZE, default 50,000).
+* Bounded retry storms on the streamer (max 5 attempts × jittered backoff).
+* Visible saturation via rejectedCount metric and high-water-mark log line at 80% capacity.
 
 Trade-off accepted
 
@@ -508,9 +508,9 @@ Message lifecycle
 The three RPCs and their contracts
 
 RPC	Contract
-SendTelemetry	Returns success only after message is appended to messages AND persisted to BoltDB
-CollectTelemetry	Server-stream; queue assigns MessageId, moves to pending, sends. Does not retry on stream send failure — relies on ack timeout
-AckTelemetry	Idempotent: ack-of-unknown-id returns success (message was already requeued or acked); on known id, removes from pending and BoltDB
+* SendTelemetry	Returns success only after message is appended to messages AND persisted to BoltDB
+* CollectTelemetry	Server-stream; queue assigns MessageId, moves to pending, sends. Does not retry on stream send failure — relies on ack timeout
+* AckTelemetry	Idempotent: ack-of-unknown-id returns success (message was already requeued or acked); on known id, removes from pending and BoltDB
 
 The collector-side discipline
 
@@ -654,12 +654,14 @@ The key property: no message is lost during shutdown. Messages still in messages
 To keep the design honest, here is what the queue is not:
 
 
-Not implemented	Why deferred	Where addressed
-Partitioning by key (e.g., gpu_id)	Single-mutex FIFO is sufficient at exercise scale; idempotent sink absorbs minor reordering	Section 8
-Consumer groups	All collectors share one logical queue; load balancing is implicit (Signal() wakes one)	Section 8
-Replication / multi-replica HA	Adds Raft/Paxos complexity; single replica + persistence covers data loss; brief unavailability on restart is acceptable	Section 8
-Prometheus metrics endpoint	Counters are logged, not scraped; observability roadmap	Section 8
-Message replay / retention after ack	Once acked, messages are deleted; no historical replay capability	Section 8
+| Not implemented | Why deferred | Where addressed |
+| :--- | :--- | :--- |
+| **Partitioning by key (e.g., `gpu_id`)** | Single-mutex FIFO is sufficient at exercise scale; idempotent sink absorbs minor reordering | Section 8 |
+| **Consumer groups** | All collectors share one logical queue; load balancing is implicit (`Signal()` wakes one) | Section 8 |
+| **Replication / multi-replica HA** | Adds Raft/Paxos complexity; single replica + persistence covers data loss; brief unavailability on restart is acceptable | Section 8 |
+| **Prometheus metrics endpoint** | Counters are logged, not scraped; observability roadmap | Section 8 |
+| **Message replay / retention after ack** | Once acked, messages are deleted; no historical replay capability | Section 8 |
+
 
 These are intentional scope cuts, not oversights. Each has a clear path forward and is documented in the production roadmap.
 </details>
@@ -680,32 +682,34 @@ helm install gpu-telemetry ./charts/gpu-telemetry -n gpu-telemetry --create-name
 All runtime configuration is environment-variable driven, surfaced through Helm values:
 
 
-Component	Variable	Default	Purpose
-Streamer	GRPC_SERVER_ADDR	(required)	Queue endpoint
-Streamer	CSV_FILE_PATH	dcgm_metrics_*.csv	Source data
-Streamer	SLEEP_DURATION_SECONDS	10	Inter-cycle pause
-Streamer	MAX_RETRIES	5	Backpressure retry budget
-Queue	GRPC_SERVER_ADDR	:50051	Listen address
-Queue	QUEUE_MAX_SIZE	10000	Backpressure threshold
-Queue	ACK_TIMEOUT_SECONDS	30	Requeue trigger
-Queue	BOLTDB_PATH	/data/queue.db	Persistence file (PVC-backed)
-Collector	GRPC_SERVER_ADDR	(required)	Queue endpoint
-Collector	INFLUXDB_URL	http://influxdb:8181	Sink endpoint
-Collector	INFLUXDB_TOKEN	(required)	Auth
-Collector	INFLUXDB_ORG	ai_org	Tenant
-REST API	INFLUXDB_*	(same as collector)	Read access
-REST API	HTTP_PORT	8080	Listen port
+| Component | Variable | Default | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Streamer** | `GRPC_SERVER_ADDR` | *(required)* | Queue endpoint |
+| **Streamer** | `CSV_FILE_PATH` | `dcgm_metrics_*.csv` | Source data |
+| **Streamer** | `SLEEP_DURATION_SECONDS` | `10` | Inter-cycle pause |
+| **Streamer** | `MAX_RETRIES` | `5` | Backpressure retry budget |
+| **Queue** | `GRPC_SERVER_ADDR` | `:50051` | Listen address |
+| **Queue** | `QUEUE_MAX_SIZE` | `10000` | Backpressure threshold |
+| **Queue** | `ACK_TIMEOUT_SECONDS` | `30` | Requeue trigger |
+| **Queue** | `BOLTDB_PATH` | `/data/queue.db` | Persistence file (PVC-backed) |
+| **Collector** | `GRPC_SERVER_ADDR` | *(required)* | Queue endpoint |
+| **Collector** | `INFLUXDB_URL` | `http://influxdb:8181` | Sink endpoint |
+| **Collector** | `INFLUXDB_TOKEN` | *(required)* | Auth |
+| **Collector** | `INFLUXDB_ORG` | `ai_org` | Tenant |
+| **REST API** | `INFLUXDB_*` | *(same as collector)* | Read access |
+| **REST API** | `HTTP_PORT` | `8080` | Listen port |
+
 
 6.3 Startup Ordering
 
 Init containers enforce dependency readiness so the system bootstraps cleanly even on a cold cluster:
 
 
-Pod	Init container	Waits for
-Streamer	nc -z <queue> <port>	Queue's gRPC port reachable
-Collector	TCP probe on InfluxDB	InfluxDB ready to accept writes
-Queue	(none — root of dependency graph)	—
-REST API	TCP probe on InfluxDB	InfluxDB ready to accept queries
+* Pod	Init container	Waits for
+* Streamer	nc -z <queue> <port>	Queue's gRPC port reachable
+* Collector	TCP probe on InfluxDB	InfluxDB ready to accept writes
+* Queue	(none — root of dependency graph)	—
+* REST API	TCP probe on InfluxDB	InfluxDB ready to accept queries
 
 This eliminates the retry-storm pattern that normally shows up at cluster bring-up, where every pod hammers a not-yet-ready dependency and fills logs with errors. New hires see a clean startup sequence on first install.
 
@@ -715,13 +719,13 @@ This eliminates the retry-storm pattern that normally shows up at cluster bring-
 Structured logs at every state transition:
 
 
-Enqueue — message ID, queue depth, max size
-Dispatch — message ID, pending count
-Ack — message ID, total acked, pending remaining
-Requeue — message ID, time waited, deliveries count
-Reject (backpressure) — queue size, total rejected
-High-water mark — fires at 80% capacity
-Shutdown stats — final counters for forensic analysis
+* Enqueue — message ID, queue depth, max size
+* Dispatch — message ID, pending count
+* Ack — message ID, total acked, pending remaining
+* Requeue — message ID, time waited, deliveries count
+* Reject (backpressure) — queue size, total rejected
+* High-water mark — fires at 80% capacity
+* Shutdown stats — final counters for forensic analysis
 
 Logs are plain log package output for now. Migration to structured JSON logging (zap or slog) is a roadmap item.
 
@@ -739,32 +743,32 @@ The queue exposes a TCP-reachable gRPC port that doubles as its readiness signal
 Unit tests cover the core queue logic and gRPC handlers at ~51% line coverage:
 
 
-SendTelemetry — happy path, nil request, server-closed, queue-full backpressure rejection.
-CollectTelemetry — single message dispatch, multiple-collector fan-out, graceful exit on shutdown.
-AckTelemetry — known message, unknown message (idempotent success), missing message ID.
-Concurrency invariants — multiple producers + multiple consumers, verifying no message is lost or double-dispatched under contention.
-State transitions — enqueue → pending → ack → deletion; enqueue → pending → timeout → requeue.
+* SendTelemetry — happy path, nil request, server-closed, queue-full backpressure rejection.
+* CollectTelemetry — single message dispatch, multiple-collector fan-out, graceful exit on shutdown.
+* AckTelemetry — known message, unknown message (idempotent success), missing message ID.
+* Concurrency invariants — multiple producers + multiple consumers, verifying no message is lost or double-dispatched under contention.
+* State transitions — enqueue → pending → ack → deletion; enqueue → pending → timeout → requeue.
 
 gRPC streaming is tested using mock streams that implement the TelemetryServiceClient,TelemetryService_CollectTelemetryClient interface, allowing assertions on dispatched messages without a real network.
 
 
 7.2 What is not covered
 
-End-to-end integration with real InfluxDB — currently smoke-tested manually via the kind deployment, not automated.
-BoltDB persistence corner cases — partial writes, disk full, file corruption.
-Helm chart deployment validation — no helm test hooks yet.
-Network failure injection — collector reconnection on queue restart, streamer behavior on network partition.
-Quantitative load testing — throughput, p99 latency, backpressure behavior under sustained pressure.
+* End-to-end integration with real InfluxDB — currently smoke-tested manually via the kind deployment, not automated.
+* BoltDB persistence corner cases — partial writes, disk full, file corruption.
+* Helm chart deployment validation — no helm test hooks yet.
+* Network failure injection — collector reconnection on queue restart, streamer behavior on network partition.
+* Quantitative load testing — throughput, p99 latency, backpressure behavior under sustained pressure.
 
 7.3 Coverage framing
 
 The 51% number reflects deliberate prioritization: core queue logic and gRPC handlers are tested; integration and persistence layers are next. With more time, the next investments would be:
 
 
-Integration tests in a kind cluster, exercising the full data path with assertion on InfluxDB content.
-Chaos tests killing the collector mid-process and verifying requeue + reprocessing.
-Property-based tests for queue invariants (no loss, FIFO ordering within a producer, eventual consistency under arbitrary interleavings).
-Load tests with ghz (gRPC benchmarking) to characterize throughput and latency curves.
+* Integration tests in a kind cluster, exercising the full data path with assertion on InfluxDB content.
+* Chaos tests killing the collector mid-process and verifying requeue + reprocessing.
+* Property-based tests for queue invariants (no loss, FIFO ordering within a producer, eventual consistency under arbitrary interleavings).
+* Load tests with ghz (gRPC benchmarking) to characterize throughput and latency curves.
 
 
 <b><h2>8. Known Limitations & Production Roadmap</h2></b>
