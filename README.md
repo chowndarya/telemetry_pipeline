@@ -11,22 +11,19 @@ A horizontally scalable, available, and elastic telemetry pipeline that ingests 
 
 The pipeline is designed considering GPU operations use cases such as detecting GPU failures and informing AI workload checkpoint migration decisions — scenarios where historical trend analysis will be needed
 
+#### In Scope
+* **Custom message queue implementation:** Built natively without external message brokers like Kafka, RabbitMQ, or NATS.
+* **Service components:** Full delivery of both Producer (streamer) and Consumer (collector) services.
+* **Storage and access:** Time-series persistence pipeline coupled with a historical query API.
+* **Deployment infrastructure:** Helm-based deployment automated for a local Kubernetes cluster (`kind` on macOS).
+* **Code quality:** Clean code practices, structured logging, graceful lifecycle management, and comprehensive unit-test coverage for core logic.
 
-In Scope
-
-a.Custom message queue implementation (no Kafka, RabbitMQ, NATS, etc.).
-b.Producer (streamer) and consumer (collector) services.
-c.Time-series persistence and historical query API.
-d.Helm-based deployment to a local Kubernetes cluster (kind on macOS).
-e.Clean code, structured logging, graceful lifecycle, and unit-test coverage of core logic.
-
-Out of Scope (deliberate)
-
-a.Real DCGM integration — the streamer replays a static CSV with refreshed timestamps to simulate live GPU metric emission.
-b.UI / dashboards — a read-only REST API is sufficient for this exercise.
-c.Multi-cluster / multi-region deployment.
-d.Authentication / authorization on the data plane.
-e.Quantitative load testing (functional correctness was prioritized; load characterization is listed in Section 8 as next step).
+#### Out of Scope (Deliberate)
+* **Real DCGM integration:** The streamer replays a static CSV dataset with refreshed timestamps to simulate live GPU metric emission.
+* **UI and dashboards:** Graphical visualizations are omitted; a read-only REST API is sufficient for this exercise.
+* **Advanced deployment topologies:** Multi-cluster or multi-region deployments are excluded.
+* **Security protocols:** Authentication and authorization mechanisms are bypassed on the data plane.
+* **Quantitative load testing (functional correctness was prioritized; load characterization is listed in Section 8 as next step).
 
 Non-functional Targets
 
