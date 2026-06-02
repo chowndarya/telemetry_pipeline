@@ -212,7 +212,7 @@ load:
 	kind load image-archive telemetry-streamer.tar --name kind-cluster
 
 deploy:
-	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART_PATH) --namespace $(HELM_NAMESPACE)
+	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART_PATH) --namespace $(HELM_NAMESPACE) --create-namespace
 
 clean:
 	rm -f telemetry-apis.tar telemetry-queue.tar telemetry-collector.tar telemetry-streamer.tar
