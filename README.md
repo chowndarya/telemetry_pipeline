@@ -830,18 +830,6 @@ Single chart was optimized for new-hire install. Production would split into umb
 
 Plain log package output suffices for an exercise. Production should migrate to slog or zap with JSON output for log aggregation pipelines.
 
-
-8.9 Auth on the data plane
-
-gRPC calls between streamer/queue and collector/queue are unauthenticated. Production would add mTLS via SPIFFE / cert-manager.
-
-
-8.10 Message TTL and replay
-
-Messages are deleted on ack with no historical retention at the queue layer (InfluxDB retains the data, but the queue cannot replay). For DR scenarios where InfluxDB itself fails, queue-side retention with a configurable TTL would provide a replay window.
-
-
-
 <b><h2>9. Quickstart</h2></b>
 
 See `INSTALL.md` for full instructions.
