@@ -239,17 +239,18 @@ Note: The generated spec follows OpenAPI 2.0 (formerly Swagger 2.0). If you need
 
 To remove the telemetry pipeline:
 
-# Uninstall the release (keeps PVCs by default)
+Uninstall the release (keeps PVCs by default)
+
 ```bash
 helm -n gpu-telemetry uninstall gpu-telemetry
 ```
 
-# Also remove PVCs (data wipe)
+Also remove PVCs (data wipe)
 ```bash
 kubectl -n gpu-telemetry delete pvc --all
 ```
 
-# Nuke the namespace
+ Nuke the namespace
 ```bash
 kubectl delete namespace gpu-telemetry
 ```
