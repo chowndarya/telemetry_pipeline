@@ -14,19 +14,19 @@ The pipeline is designed considering GPU operations use cases such as detecting 
 
 In Scope
 
-Custom message queue implementation (no Kafka, RabbitMQ, NATS, etc.).
-Producer (streamer) and consumer (collector) services.
-Time-series persistence and historical query API.
-Helm-based deployment to a local Kubernetes cluster (kind on macOS).
-Clean code, structured logging, graceful lifecycle, and unit-test coverage of core logic.
+a.Custom message queue implementation (no Kafka, RabbitMQ, NATS, etc.).
+b.Producer (streamer) and consumer (collector) services.
+c.Time-series persistence and historical query API.
+d.Helm-based deployment to a local Kubernetes cluster (kind on macOS).
+e.Clean code, structured logging, graceful lifecycle, and unit-test coverage of core logic.
 
 Out of Scope (deliberate)
 
-Real DCGM integration — the streamer replays a static CSV with refreshed timestamps to simulate live GPU metric emission.
-UI / dashboards — a read-only REST API is sufficient for this exercise.
-Multi-cluster / multi-region deployment.
-Authentication / authorization on the data plane.
-Quantitative load testing (functional correctness was prioritized; load characterization is listed in Section 8 as next step).
+a.Real DCGM integration — the streamer replays a static CSV with refreshed timestamps to simulate live GPU metric emission.
+b.UI / dashboards — a read-only REST API is sufficient for this exercise.
+c.Multi-cluster / multi-region deployment.
+d.Authentication / authorization on the data plane.
+e.Quantitative load testing (functional correctness was prioritized; load characterization is listed in Section 8 as next step).
 
 Non-functional Targets
 
