@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.35.0
-// source: telemetry.proto
+// source: grpc_proto/telemetry.proto
 
 package grpc_proto
 
@@ -32,13 +32,14 @@ type TelemetryRequest struct {
 	Namespace     string                 `protobuf:"bytes,7,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	Value         float64                `protobuf:"fixed64,8,opt,name=value,proto3" json:"value,omitempty"`
 	LabelsRaw     string                 `protobuf:"bytes,9,opt,name=labels_raw,json=labelsRaw,proto3" json:"labels_raw,omitempty"`
+	MessageId     string                 `protobuf:"bytes,20,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"` // populated only on dispatch to collector; empty when streamer sends
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TelemetryRequest) Reset() {
 	*x = TelemetryRequest{}
-	mi := &file_telemetry_proto_msgTypes[0]
+	mi := &file_grpc_proto_telemetry_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -50,7 +51,7 @@ func (x *TelemetryRequest) String() string {
 func (*TelemetryRequest) ProtoMessage() {}
 
 func (x *TelemetryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_telemetry_proto_msgTypes[0]
+	mi := &file_grpc_proto_telemetry_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63,7 +64,7 @@ func (x *TelemetryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelemetryRequest.ProtoReflect.Descriptor instead.
 func (*TelemetryRequest) Descriptor() ([]byte, []int) {
-	return file_telemetry_proto_rawDescGZIP(), []int{0}
+	return file_grpc_proto_telemetry_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *TelemetryRequest) GetTimestamp() int64 {
@@ -129,6 +130,13 @@ func (x *TelemetryRequest) GetLabelsRaw() string {
 	return ""
 }
 
+func (x *TelemetryRequest) GetMessageId() string {
+	if x != nil {
+		return x.MessageId
+	}
+	return ""
+}
+
 type TelemetryResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -139,7 +147,7 @@ type TelemetryResponse struct {
 
 func (x *TelemetryResponse) Reset() {
 	*x = TelemetryResponse{}
-	mi := &file_telemetry_proto_msgTypes[1]
+	mi := &file_grpc_proto_telemetry_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -151,7 +159,7 @@ func (x *TelemetryResponse) String() string {
 func (*TelemetryResponse) ProtoMessage() {}
 
 func (x *TelemetryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_telemetry_proto_msgTypes[1]
+	mi := &file_grpc_proto_telemetry_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -164,7 +172,7 @@ func (x *TelemetryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelemetryResponse.ProtoReflect.Descriptor instead.
 func (*TelemetryResponse) Descriptor() ([]byte, []int) {
-	return file_telemetry_proto_rawDescGZIP(), []int{1}
+	return file_grpc_proto_telemetry_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *TelemetryResponse) GetSuccess() bool {
@@ -181,11 +189,108 @@ func (x *TelemetryResponse) GetMessage() string {
 	return ""
 }
 
-var File_telemetry_proto protoreflect.FileDescriptor
+// New ack RPC
+type AckRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MessageId     string                 `protobuf:"bytes,1,opt,name=message_id,json=messageId,proto3" json:"message_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_telemetry_proto_rawDesc = "" +
+func (x *AckRequest) Reset() {
+	*x = AckRequest{}
+	mi := &file_grpc_proto_telemetry_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AckRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AckRequest) ProtoMessage() {}
+
+func (x *AckRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_proto_telemetry_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AckRequest.ProtoReflect.Descriptor instead.
+func (*AckRequest) Descriptor() ([]byte, []int) {
+	return file_grpc_proto_telemetry_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *AckRequest) GetMessageId() string {
+	if x != nil {
+		return x.MessageId
+	}
+	return ""
+}
+
+type AckResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AckResponse) Reset() {
+	*x = AckResponse{}
+	mi := &file_grpc_proto_telemetry_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AckResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AckResponse) ProtoMessage() {}
+
+func (x *AckResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_proto_telemetry_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AckResponse.ProtoReflect.Descriptor instead.
+func (*AckResponse) Descriptor() ([]byte, []int) {
+	return file_grpc_proto_telemetry_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AckResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *AckResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+var File_grpc_proto_telemetry_proto protoreflect.FileDescriptor
+
+const file_grpc_proto_telemetry_proto_rawDesc = "" +
 	"\n" +
-	"\x0ftelemetry.proto\x12\ttelemetry\"\x85\x02\n" +
+	"\x1agrpc_proto/telemetry.proto\x12\ttelemetry\"\xa4\x02\n" +
 	"\x10TelemetryRequest\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x03R\ttimestamp\x12\x1f\n" +
 	"\vmetric_name\x18\x02 \x01(\tR\n" +
@@ -197,63 +302,77 @@ const file_telemetry_proto_rawDesc = "" +
 	"\tnamespace\x18\a \x01(\tR\tnamespace\x12\x14\n" +
 	"\x05value\x18\b \x01(\x01R\x05value\x12\x1d\n" +
 	"\n" +
-	"labels_raw\x18\t \x01(\tR\tlabelsRaw\"G\n" +
+	"labels_raw\x18\t \x01(\tR\tlabelsRaw\x12\x1d\n" +
+	"\n" +
+	"message_id\x18\x14 \x01(\tR\tmessageId\"G\n" +
 	"\x11TelemetryResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xae\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"+\n" +
+	"\n" +
+	"AckRequest\x12\x1d\n" +
+	"\n" +
+	"message_id\x18\x01 \x01(\tR\tmessageId\"A\n" +
+	"\vAckResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xed\x01\n" +
 	"\x10TelemetryService\x12J\n" +
 	"\rSendTelemetry\x12\x1b.telemetry.TelemetryRequest\x1a\x1c.telemetry.TelemetryResponse\x12N\n" +
-	"\x10CollectTelemetry\x12\x1b.telemetry.TelemetryRequest\x1a\x1b.telemetry.TelemetryRequest0\x01B\x19Z\x17./grpc_proto;grpc_protob\x06proto3"
+	"\x10CollectTelemetry\x12\x1b.telemetry.TelemetryRequest\x1a\x1b.telemetry.TelemetryRequest0\x01\x12=\n" +
+	"\fAckTelemetry\x12\x15.telemetry.AckRequest\x1a\x16.telemetry.AckResponseB\x19Z\x17./grpc_proto;grpc_protob\x06proto3"
 
 var (
-	file_telemetry_proto_rawDescOnce sync.Once
-	file_telemetry_proto_rawDescData []byte
+	file_grpc_proto_telemetry_proto_rawDescOnce sync.Once
+	file_grpc_proto_telemetry_proto_rawDescData []byte
 )
 
-func file_telemetry_proto_rawDescGZIP() []byte {
-	file_telemetry_proto_rawDescOnce.Do(func() {
-		file_telemetry_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_telemetry_proto_rawDesc), len(file_telemetry_proto_rawDesc)))
+func file_grpc_proto_telemetry_proto_rawDescGZIP() []byte {
+	file_grpc_proto_telemetry_proto_rawDescOnce.Do(func() {
+		file_grpc_proto_telemetry_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_grpc_proto_telemetry_proto_rawDesc), len(file_grpc_proto_telemetry_proto_rawDesc)))
 	})
-	return file_telemetry_proto_rawDescData
+	return file_grpc_proto_telemetry_proto_rawDescData
 }
 
-var file_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_telemetry_proto_goTypes = []any{
+var file_grpc_proto_telemetry_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_grpc_proto_telemetry_proto_goTypes = []any{
 	(*TelemetryRequest)(nil),  // 0: telemetry.TelemetryRequest
 	(*TelemetryResponse)(nil), // 1: telemetry.TelemetryResponse
+	(*AckRequest)(nil),        // 2: telemetry.AckRequest
+	(*AckResponse)(nil),       // 3: telemetry.AckResponse
 }
-var file_telemetry_proto_depIdxs = []int32{
+var file_grpc_proto_telemetry_proto_depIdxs = []int32{
 	0, // 0: telemetry.TelemetryService.SendTelemetry:input_type -> telemetry.TelemetryRequest
 	0, // 1: telemetry.TelemetryService.CollectTelemetry:input_type -> telemetry.TelemetryRequest
-	1, // 2: telemetry.TelemetryService.SendTelemetry:output_type -> telemetry.TelemetryResponse
-	0, // 3: telemetry.TelemetryService.CollectTelemetry:output_type -> telemetry.TelemetryRequest
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
+	2, // 2: telemetry.TelemetryService.AckTelemetry:input_type -> telemetry.AckRequest
+	1, // 3: telemetry.TelemetryService.SendTelemetry:output_type -> telemetry.TelemetryResponse
+	0, // 4: telemetry.TelemetryService.CollectTelemetry:output_type -> telemetry.TelemetryRequest
+	3, // 5: telemetry.TelemetryService.AckTelemetry:output_type -> telemetry.AckResponse
+	3, // [3:6] is the sub-list for method output_type
+	0, // [0:3] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_telemetry_proto_init() }
-func file_telemetry_proto_init() {
-	if File_telemetry_proto != nil {
+func init() { file_grpc_proto_telemetry_proto_init() }
+func file_grpc_proto_telemetry_proto_init() {
+	if File_grpc_proto_telemetry_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_telemetry_proto_rawDesc), len(file_telemetry_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_grpc_proto_telemetry_proto_rawDesc), len(file_grpc_proto_telemetry_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_telemetry_proto_goTypes,
-		DependencyIndexes: file_telemetry_proto_depIdxs,
-		MessageInfos:      file_telemetry_proto_msgTypes,
+		GoTypes:           file_grpc_proto_telemetry_proto_goTypes,
+		DependencyIndexes: file_grpc_proto_telemetry_proto_depIdxs,
+		MessageInfos:      file_grpc_proto_telemetry_proto_msgTypes,
 	}.Build()
-	File_telemetry_proto = out.File
-	file_telemetry_proto_goTypes = nil
-	file_telemetry_proto_depIdxs = nil
+	File_grpc_proto_telemetry_proto = out.File
+	file_grpc_proto_telemetry_proto_goTypes = nil
+	file_grpc_proto_telemetry_proto_depIdxs = nil
 }

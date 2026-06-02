@@ -1,0 +1,131 @@
+AI Assistance & Development Workflow
+
+This document details how AI was leveraged as a development partner throughout the project lifecycle, including specific prompts used, areas of acceleration, and instances requiring manual intervention.
+
+
+1. Workflow Philosophy: AI as a "Pair Programmer"
+
+I treated the AI assistant as a pair programmer and design partner rather than just a code generator. The workflow followed an iterative loop: Discuss Strategy → Generate Boilerplate → Manually Validate → Debug Iteratively.
+
+
+Phase	AI Contribution	Manual Effort
+Architecture & Design	~70%	~30%
+Code Bootstrapping	~80%	~20%
+Unit Test Generation	~75%	~25%
+Build/Deployment (Docker/Helm)	~70%	~30%
+Debugging & Stability	~30%	~70%
+
+
+2. Project Bootstrapping & Architectural Design
+
+I used AI to validate architectural decisions by presenting my hypotheses and asking for trade-off analyses. This ensured my design choices were intentional rather than incidental.
+
+
+
+Prompt Example:
+"I have decided my design for GPU telemetry pipeline. It starts from a telemetry streamer... A Gin framework webserver will host 3 GET APIs. Now check whether this design will meet the success criteria for this requirement..."
+
+
+
+
+Prompt Example (Trade-off Analysis):
+"Should the collector use server-streaming or client-streaming RPC? You know my system design where gRPC server is my custom queue. Suggest which one fits a queue consumer pattern."
+
+
+
+
+3. Code Bootstrapping (The "Skeleton" Phase)
+
+The AI accelerated initial code creation significantly. I provided functional requirements, and the AI generated the structural Go code, which I then refined.
+
+
+
+Prompt Example (Streamer):
+"Write code for the telemetry streamer—read a CSV file (path stored in K8s configfile and read as env var), loop through it, convert to JSON, and send to a gRPC service. Sleep after completion and restart."
+
+
+
+
+Prompt Example (Custom Queue):
+"Write a production-level Go gRPC queue server based on my proto. It must support concurrency safety, message buffering with sync.Cond, graceful shutdown via SIGINT, and backpressure handling."
+
+
+
+
+Prompt Example (API Gateway):
+"For my API gateway in Go using Gin, I need 3 endpoints querying InfluxDB. Provide production-ready code with swaggo annotations to auto-generate OpenAPI docs."
+
+
+
+
+4. Unit Testing Strategy
+
+I used the AI as a "Test Strategy Partner." We planned the strategy first, wrote basic tests, and then iterated to bump up coverage.
+
+
+
+Prompt Example (Strategy):
+"Help me plan a test strategy for the gRPC custom queue. What edge cases should I cover for concurrency, graceful shutdown, and backpressure?"
+
+
+
+
+Prompt Example (Coverage Boost):
+"Here is my current coverage report. Generate additional test cases specifically for the error paths in the parseLabelsRaw function and the timestamp validation logic."
+
+
+
+
+5. Build, Packaging & Deployment
+
+The build environment, Dockerfiles, and Helm charts were largely bootstrapped by AI. However, this area required the most manual debugging due to environment-specific issues (Podman vs. Docker, ARM vs. AMD64).
+
+
+
+Prompt Example (Multi-stage Docker):
+"Refer to my project structure. Create production-ready Dockerfiles for all components (queue, streamer, collector, APIs) optimized for my macOS KinD cluster. Make it foolproof."
+
+
+
+
+Prompt Example (Helm Conversion):
+"Convert these standard K8s YAMLs into a production-ready Helm chart. It must include persistence for InfluxDB, an init-job (post-install hook) for DB setup, and Podman/KinD compatibility (localhost/ prefix)."
+
+
+
+
+6. Where AI Fell Short (Manual Intervention Required)
+
+While AI accelerated boilerplate creation, its limitations became evident in real-world stability and dependency management. I had to step in manually for the following:
+
+
+A. Tooling Version Mismatches (InfluxDB 3 vs. V2)
+
+The Issue: The AI defaulted to suggesting InfluxDB 3 (latest), which is unstable and uses SQL/Arrow types instead of Flux. Its Go client API differed significantly from the documentation.
+Manual Fix: I had to read the official InfluxDB v2 docs, manually downgrade the Go client to influxdb-client-go/v2, and re-architect the query logic to handle arrow.Timestamp types instead of standard time.Time.
+
+B. Dependency Hell (Circular Imports)
+
+The Issue: The InfluxDB v1 Go client transitively pulled in the Iris web framework, which had a broken sub-dependency on pio. The AI suggested replace directives that didn't resolve the conflict.
+Manual Fix: I traced the dependency tree using go mod why to identify the root cause and manually upgraded to the v2 client to physically prune the broken dependency path.
+
+C. Local Cluster Networking (KinD/Podman)
+
+The Issue: AI-generated Helm charts assumed standard Docker behavior. They failed silently on my Mac because Podman prepends localhost/ to images, and KinD nodes couldn't pull them.
+Manual Fix: I manually implemented an archive-based image loading workflow (podman save | kind load image-archive) to bypass the broken Podman-Docker socket bridge.
+
+D. Container Bind Address (0.0.0.0 vs localhost)
+
+The Issue: Generated code used r.Run(":8080"), causing kubectl port-forward to fail with "connection refused" inside the namespace.
+Manual Fix: I diagnosed that Go was binding to the loopback interface and explicitly changed it to r.Run("0.0.0.0:8080") to expose it across the container network.
+
+E. Helm Chart Sequencing
+
+The Issue: Initial Helm charts deployed all components simultaneously, causing the Collector and APIs to crash-loop because the InfluxDB database (tel_db) didn't exist yet.
+Manual Fix: I introduced a Helm post-install Hook running an init-job to provision the database and table after InfluxDB became healthy, but before the dependent services started consuming it.
+
+
+7. Key Takeaway
+
+
+AI is excellent at quickly generating breadth (boilerplate, structure, syntax) but lacks the depth required for system stability. My responsibility shifted from "writing code" to "validating, testing, and integrating" the generated code into a stable, production-grade system.

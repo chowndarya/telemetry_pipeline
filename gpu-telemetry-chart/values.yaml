@@ -27,18 +27,21 @@ queue:
   image: telemetry-queue
   port: 50051
   replicas: 1
+  maxQueueSize: 50000
+  ackTimeoutSeconds: 30
+  storageSize: 1Gi
 
 collector:
   name: telemetry-collector
   image: telemetry-collector
-  replicas: 1
+  replicas: 3
 
 streamer:
   name: telemetry-streamer
   image: telemetry-streamer
-  replicas: 1
+  replicas: 3
   csvPath: "/root/metrics.csv"
-  sleepsec: 1200
+  sleepsec: 300
 
 api:
   name: telemetry-apis
@@ -47,6 +50,6 @@ api:
   measurement: gpu_metrics
   serviceType: ClusterIP
 
-init:
-  name: telemetry-init
-  image: telemetry-init
+#init:
+#  name: telemetry-init
+#  image: telemetry-init

@@ -1,0 +1,6 @@
+Telemetry system installed successfully!
+
+To access the Swagger UI, run:
+  kubectl port-forward svc/telemetry-apis 8080:8080 -n {{ .Values.namespace | default "gpu-telemetry" }}
+
+Then open: http://localhost:8080/swagger/index.html

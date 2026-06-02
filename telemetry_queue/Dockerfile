@@ -16,7 +16,7 @@ RUN go mod download
 COPY . .
 
 # Build the queue binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o /queue ./telemetry_queue/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /queue ./telemetry_queue
 
 FROM alpine:latest
 WORKDIR /root/

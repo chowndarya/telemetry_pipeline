@@ -1,9 +1,10 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet  # ← changed from Deployment for stable storage
 metadata:
   name: {{ .Values.queue.name }}
   namespace: {{ .Values.namespace }}
 spec:
+  serviceName: {{ .Values.queue.name }}
   replicas: {{ .Values.queue.replicas }}
   selector:
     matchLabels:
@@ -14,11 +15,32 @@ spec:
         app: {{ .Values.queue.name }}
     spec:
       containers:
-      - name: queue
-        image: "{{ .Values.image.registry }}/{{ .Values.queue.image }}:{{ .Values.image.tag }}"
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
-        ports:
-        - containerPort: {{ .Values.queue.port }}
+        - name: queue
+          image: "{{ .Values.image.registry }}/{{ .Values.queue.image }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.queue.port }}
+          env:
+            - name: GRPC_SERVER_ADDR
+              value: ":{{ .Values.queue.port }}"
+            - name: QUEUE_MAX_SIZE
+              value: "{{ .Values.queue.maxQueueSize }}"
+            - name: ACK_TIMEOUT_SECONDS
+              value: "{{ .Values.queue.ackTimeoutSeconds }}"
+            - name: BOLTDB_PATH
+              value: "/data/queue.db"
+          volumeMounts:
+            - name: queue-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: queue-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.queue.storageSize | default "1Gi" }}
+
 ---
 apiVersion: v1
 kind: Service

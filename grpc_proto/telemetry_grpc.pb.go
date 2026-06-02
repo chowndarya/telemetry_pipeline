@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v7.35.0
-// source: telemetry.proto
+// source: grpc_proto/telemetry.proto
 
 package grpc_proto
 
@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	TelemetryService_SendTelemetry_FullMethodName    = "/telemetry.TelemetryService/SendTelemetry"
 	TelemetryService_CollectTelemetry_FullMethodName = "/telemetry.TelemetryService/CollectTelemetry"
+	TelemetryService_AckTelemetry_FullMethodName     = "/telemetry.TelemetryService/AckTelemetry"
 )
 
 // TelemetryServiceClient is the client API for TelemetryService service.
@@ -32,6 +33,7 @@ type TelemetryServiceClient interface {
 	// SendTelemetry sends a telemetry data point
 	SendTelemetry(ctx context.Context, in *TelemetryRequest, opts ...grpc.CallOption) (*TelemetryResponse, error)
 	CollectTelemetry(ctx context.Context, in *TelemetryRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TelemetryRequest], error)
+	AckTelemetry(ctx context.Context, in *AckRequest, opts ...grpc.CallOption) (*AckResponse, error)
 }
 
 type telemetryServiceClient struct {
@@ -71,6 +73,16 @@ func (c *telemetryServiceClient) CollectTelemetry(ctx context.Context, in *Telem
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TelemetryService_CollectTelemetryClient = grpc.ServerStreamingClient[TelemetryRequest]
 
+func (c *telemetryServiceClient) AckTelemetry(ctx context.Context, in *AckRequest, opts ...grpc.CallOption) (*AckResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AckResponse)
+	err := c.cc.Invoke(ctx, TelemetryService_AckTelemetry_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TelemetryServiceServer is the server API for TelemetryService service.
 // All implementations must embed UnimplementedTelemetryServiceServer
 // for forward compatibility.
@@ -80,6 +92,7 @@ type TelemetryServiceServer interface {
 	// SendTelemetry sends a telemetry data point
 	SendTelemetry(context.Context, *TelemetryRequest) (*TelemetryResponse, error)
 	CollectTelemetry(*TelemetryRequest, grpc.ServerStreamingServer[TelemetryRequest]) error
+	AckTelemetry(context.Context, *AckRequest) (*AckResponse, error)
 	mustEmbedUnimplementedTelemetryServiceServer()
 }
 
@@ -95,6 +108,9 @@ func (UnimplementedTelemetryServiceServer) SendTelemetry(context.Context, *Telem
 }
 func (UnimplementedTelemetryServiceServer) CollectTelemetry(*TelemetryRequest, grpc.ServerStreamingServer[TelemetryRequest]) error {
 	return status.Errorf(codes.Unimplemented, "method CollectTelemetry not implemented")
+}
+func (UnimplementedTelemetryServiceServer) AckTelemetry(context.Context, *AckRequest) (*AckResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AckTelemetry not implemented")
 }
 func (UnimplementedTelemetryServiceServer) mustEmbedUnimplementedTelemetryServiceServer() {}
 func (UnimplementedTelemetryServiceServer) testEmbeddedByValue()                          {}
@@ -146,6 +162,24 @@ func _TelemetryService_CollectTelemetry_Handler(srv interface{}, stream grpc.Ser
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TelemetryService_CollectTelemetryServer = grpc.ServerStreamingServer[TelemetryRequest]
 
+func _TelemetryService_AckTelemetry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TelemetryServiceServer).AckTelemetry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TelemetryService_AckTelemetry_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TelemetryServiceServer).AckTelemetry(ctx, req.(*AckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TelemetryService_ServiceDesc is the grpc.ServiceDesc for TelemetryService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -157,6 +191,10 @@ var TelemetryService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "SendTelemetry",
 			Handler:    _TelemetryService_SendTelemetry_Handler,
 		},
+		{
+			MethodName: "AckTelemetry",
+			Handler:    _TelemetryService_AckTelemetry_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -165,5 +203,5 @@ var TelemetryService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "telemetry.proto",
+	Metadata: "grpc_proto/telemetry.proto",
 }

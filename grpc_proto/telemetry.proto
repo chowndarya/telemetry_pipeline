@@ -8,6 +8,7 @@ service TelemetryService {
     // SendTelemetry sends a telemetry data point
     rpc SendTelemetry (TelemetryRequest) returns (TelemetryResponse);
     rpc CollectTelemetry (TelemetryRequest) returns (stream TelemetryRequest);
+    rpc AckTelemetry(AckRequest) returns (AckResponse);  // NEW
 }
 
 message TelemetryRequest {
@@ -20,9 +21,20 @@ message TelemetryRequest {
     string namespace = 7;
     double value = 8;
     string labels_raw = 9;
+    string message_id = 20;  // populated only on dispatch to collector; empty when streamer sends
 }
 
 message TelemetryResponse {
     bool success = 1;
     string message = 2;
+}
+
+// New ack RPC
+message AckRequest {
+  string message_id = 1;
+}
+
+message AckResponse {
+  bool success = 1;
+  string message = 2;
 }

@@ -43,6 +43,26 @@ func (m *MockTelemetryServiceClient) EXPECT() *MockTelemetryServiceClientMockRec
 	return m.recorder
 }
 
+// AckTelemetry mocks base method.
+func (m *MockTelemetryServiceClient) AckTelemetry(ctx context.Context, in *grpc_proto.AckRequest, opts ...grpc.CallOption) (*grpc_proto.AckResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "AckTelemetry", varargs...)
+	ret0, _ := ret[0].(*grpc_proto.AckResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AckTelemetry indicates an expected call of AckTelemetry.
+func (mr *MockTelemetryServiceClientMockRecorder) AckTelemetry(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AckTelemetry", reflect.TypeOf((*MockTelemetryServiceClient)(nil).AckTelemetry), varargs...)
+}
+
 // CollectTelemetry mocks base method.
 func (m *MockTelemetryServiceClient) CollectTelemetry(ctx context.Context, in *grpc_proto.TelemetryRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[grpc_proto.TelemetryRequest], error) {
 	m.ctrl.T.Helper()
