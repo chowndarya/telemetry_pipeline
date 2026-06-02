@@ -674,7 +674,7 @@ The entire system is deployed via a single Helm chart to a kind cluster on macOS
 
 ```
 bash
-# One-command install (see INSTALL.md for prerequisites)
+# see INSTALL.md for prerequisites
 helm install gpu-telemetry ./charts/gpu-telemetry -n gpu-telemetry --create-namespace
 ```
 
