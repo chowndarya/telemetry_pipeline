@@ -1,4 +1,4 @@
-Telemetry Pipeline — Installation Guide (macOS)
+<b>Telemetry Pipeline — Installation Guide (macOS)</b>
 
 This guide walks you through installing, deploying, testing, and uninstalling the GPU Telemetry Pipeline on macOS using KinD (Kubernetes in Docker), Podman, and Helm.
 
@@ -17,7 +17,7 @@ Uninstall
 Troubleshooting
 
 
-1. Prerequisites
+<b><h3>1. Prerequisites</h3></b>
 
 Install the following tools on your macOS system before proceeding:
 
@@ -34,17 +34,15 @@ Initialize Podman Machine
 
 If running Podman for the first time on macOS:
 
-
-bash
-Copy Code
+```bash
 podman machine init
 podman machine start
-
+```
 
 Note: This setup uses Podman for image builds (not Docker). If you prefer Docker, see the Using Docker Instead of Podman note in the Troubleshooting section.
 
 
-2. KinD Cluster Setup
+<b><h3>2. KinD Cluster Setup</h3></b>
 
 The Makefile expects a KinD cluster named kind-cluster.
 
@@ -52,13 +50,11 @@ The Makefile expects a KinD cluster named kind-cluster.
 Create the cluster:
 
 ```bash
-Copy Code
 kind create cluster --name kind-cluster
 ```
 Verify it's running:
 
 ```bash
-Copy Code
 kind get clusters
 kubectl cluster-info --context kind-kind-cluster
 ```
@@ -66,7 +62,7 @@ kubectl cluster-info --context kind-kind-cluster
 If your cluster has a different name, update the --name value in the load target of the Makefile accordingly.
 
 
-3. Configuration
+<b><h3>3. Configuration</h3></b>
 
 Before deploying, review and adjust the Helm chart values to match your environment.
 
@@ -84,7 +80,6 @@ Example snippet:
 
 
 ```yaml
-Copy Code
 namespace: gpu-telemetry
 
 image:
@@ -98,14 +93,15 @@ queue:
   maxQueueSize: 10000
 ```
 
-4. Build & Deploy
+<b><h3>4. Build & Deploy</h3></b>
 
 The Makefile provides a one-shot make all target that performs the full lifecycle: build → save → load → deploy.
 
 
 Run the full deployment:
+```bash
 make all
-
+```
 This will:
 
 
@@ -116,13 +112,13 @@ Deploy the Helm chart gpu-telemetry into the gpu-telemetry namespace.
 
 Run individual steps (optional):
 
-bash
-Copy Code
+```bash
 make build      # Build images only
 make push       # Save images to .tar files
 make load       # Load images into KinD cluster
 make deploy     # Helm install/upgrade
 make clean      # Remove generated .tar files
+```
 
 Verify pods are running:
 
@@ -132,7 +128,7 @@ All pods (telemetry-apis, telemetry-queue, telemetry-collector, telemetry-stream
 
 
 
-5. Verify the Deployment
+<b><h3>5. Verify the Deployment</h3></b>
 
 Step 1: Port-forward the API service
 
@@ -174,20 +170,20 @@ A successful response containing a list of metrics confirms the end-to-end insta
 
 
 
-6. Running Tests
+<b><h3>6. Running Tests</h3></b>
 
 The Makefile includes targets for unit, integration, and stress tests.
 
 
 Unit tests:
 
-bash
-Copy Code
+```bash
 make test                    # Run all unit tests (verbose)
 make test-short              # Run only short tests
 make test-streamer           # Test only the streamer component
 make test-collector          # Test only the collector component
 make test-apis               # Test only the API component
+```
 
 Integration tests (requires Podman/Docker):
 
@@ -215,7 +211,7 @@ View available targets:
 make help
 
 
-7. Generating the OpenAPI Spec
+<b><h3>7. Generating the OpenAPI Spec</h3></b>
 
 The REST API's OpenAPI specification is auto-generated from Go annotations using `swag`.
 
@@ -236,7 +232,7 @@ The swag CLI will be auto-installed if not already present (requires Go).
 
 Note: The generated spec follows OpenAPI 2.0 (formerly Swagger 2.0). If you need OpenAPI 3.x, convert it using `swagger2openapi`.
 
-8. Uninstall
+<b><h3>8. Uninstall</h3></b>
 
 To remove the telemetry pipeline:
 
@@ -252,7 +248,7 @@ To clean local image archives:
 make clean
 
 
-9. Troubleshooting
+<b><h3>9. Troubleshooting</h3></b>
 
 ImagePullBackOff for localhost/... images
 
@@ -264,7 +260,7 @@ Ensure imagePullPolicy: IfNotPresent (or Never) is set in your Helm templates.
 Verify the image is loaded in the cluster:
 
 bash
-Copy Code
+
 docker exec -it kind-cluster-control-plane crictl images | grep telemetry
 If missing, re-run make load.
 
@@ -275,7 +271,6 @@ The Makefile uses podman. If you see this error, ensure Podman is installed and 
 
 
 bash
-Copy Code
 podman machine start
 
 no nodes found for cluster "kind"
@@ -284,7 +279,6 @@ You have a KinD cluster with a non-default name. Pass the --name flag:
 
 
 bash
-Copy Code
 kind load image-archive <file>.tar --name kind-cluster
 
 The Makefile already does this; verify your cluster is named kind-cluster or update the Makefile.
@@ -296,7 +290,6 @@ Likely a BoltDB volume permission issue. Check logs:
 
 
 bash
-Copy Code
 kubectl logs -n gpu-telemetry telemetry-queue-0
 
 Ensure your Helm StatefulSet has securityContext.fsGroup: 1000 set, and that the BoltDB path exists at /data/queue.db.
