@@ -32,7 +32,7 @@ Non-functional Targets
 | **Scalability** | 10 streamer + 10 collector replicas | Stateless producers/consumers; queue is the only stateful component |
 | **Availability** | Survive component restarts without data loss | At-least-once delivery + BoltDB persistence on the queue |
 | **Elasticity** | Add/remove replicas without disruption | gRPC connection model; collectors auto-resume on reconnect |
-| **Operability** | New hire installs in under 10 minutes from README | Single namespace, single Helm chart, no manual config |
+| **Operability** | New installs in under 10 minutes from README | Single namespace, single Helm chart, no manual config |
 | **Observability** | Component state visible from logs | Structured logs at every state transition (enqueue, dispatch, ack, requeue, reject) |
 
 
