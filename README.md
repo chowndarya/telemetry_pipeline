@@ -12,17 +12,25 @@ A horizontally scalable, available, and elastic telemetry pipeline that ingests 
 The pipeline is designed considering GPU operations use cases such as detecting GPU failures and informing AI workload checkpoint migration decisions — scenarios where historical trend analysis will be needed
 
 <h5><b>In Scope</b></h5>
-* Custom message queue implementation:** Built natively without external message brokers like Kafka, RabbitMQ, or NATS.
+* Custom message queue implementation: Built natively without external message brokers like Kafka, RabbitMQ, or NATS.
+
 * Service components: Full delivery of both Producer (streamer) and Consumer (collector) services.
+   
 * Storage and access: Time-series persistence pipeline coupled with a historical query API.
+    
 * Deployment infrastructure: Helm-based deployment automated for a local Kubernetes cluster (`kind` on macOS).
+  
 * Code quality: Clean code practices, structured logging, graceful lifecycle management, and comprehensive unit-test coverage for core logic.
 
 <h5><b>Out of Scope (Deliberate) </b></h5>
 * Real DCGM integration: The streamer replays a static CSV dataset with refreshed timestamps to simulate live GPU metric emission.
+
 * UI and dashboards: Graphical visualizations are omitted; a read-only REST API is sufficient for this exercise.
+  
 * Advanced deployment topologies: Multi-cluster or multi-region deployments are excluded.
+  
 * Security protocols: Authentication and authorization mechanisms are bypassed on the data plane.
+  
 * Quantitative load testing (functional correctness was prioritized; load characterization is listed in Section 8 as next step).
 
 Non-functional Targets
