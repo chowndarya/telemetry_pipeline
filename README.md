@@ -4,14 +4,12 @@ GPU Telemetry Pipeline
 Note for reviewers: This document captures the architecture and key design decisions. Each major decision includes an expandable "Why this choice?" block for deeper context. Quickstart instructions are in `INSTALL.md`.
 
 
-
-
-1. Overview & Goals
+<b><h2>1. Overview & Goals </h2></b>
 
 A horizontally scalable, available, and elastic telemetry pipeline that ingests GPU metrics, buffers them through a custom in-house message queue, and persists them to a time-series store for historical analysis.
 
 
-The pipeline is designed to support GPU operations use cases such as detecting GPU failures and informing AI workload checkpoint migration decisions — scenarios where historical trend analysis matters more than real-time alerting.
+The pipeline is designed considering GPU operations use cases such as detecting GPU failures and informing AI workload checkpoint migration decisions — scenarios where historical trend analysis will be needed
 
 
 In Scope
@@ -32,19 +30,20 @@ Quantitative load testing (functional correctness was prioritized; load characte
 
 Non-functional Targets
 
-Property	Target	How achieved
-Scalability	10 streamer + 10 collector replicas	Stateless producers/consumers; queue is the only stateful component
-Availability	Survive component restarts without data loss	At-least-once delivery + BoltDB persistence on the queue
-Elasticity	Add/remove replicas without disruption	gRPC connection model; collectors auto-resume on reconnect
-Operability	New hire installs in under 10 minutes from README	Single namespace, single Helm chart, no manual config
-Observability	Component state visible from logs	Structured logs at every state transition (enqueue, dispatch, ack, requeue, reject)
+| Property | Target | How achieved |
+| :--- | :--- | :--- |
+| **Scalability** | 10 streamer + 10 collector replicas | Stateless producers/consumers; queue is the only stateful component |
+| **Availability** | Survive component restarts without data loss | At-least-once delivery + BoltDB persistence on the queue |
+| **Elasticity** | Add/remove replicas without disruption | gRPC connection model; collectors auto-resume on reconnect |
+| **Operability** | New hire installs in under 10 minutes from README | Single namespace, single Helm chart, no manual config |
+| **Observability** | Component state visible from logs | Structured logs at every state transition (enqueue, dispatch, ack, requeue, reject) |
 
 
-2. Architecture
+<b><h2>2. Architecture</h2></b>
 
 2.1 Component Diagram
 
-mermaid
+```mermaid
 flowchart LR
     subgraph K8s["Kubernetes Namespace: gpu-telemetry"]
         direction LR
@@ -93,12 +92,12 @@ flowchart LR
 
         REST -- "Flux/SQL query" --> IDB
     end
-
-    User(["User / Reviewer"]) -- "GET /metrics?gpu_id=..." --> REST
+    User(["User / Reviewer"]) -- "GET /gpus/{gpu_id}/telemetry?" --> REST
+```
 
 2.2 Data Flow Narrative
 
-0. Bootstrap — On pod start, init containers gate the main container: streamer init waits for the queue's /healthz; collector init waits for InfluxDB's readiness endpoint. Only after these pass does the main container start, ensuring no wasted retry storms during cluster bring-up.
+0. Bootstrap — On pod start, init containers gate the main container: streamer init waits for the queue to be up; collector init waits for InfluxDB's readiness endpoint. Only after these pass does the main container start, ensuring no wasted retry storms during cluster bring-up.
 
 1. Ingest — Each streamer pod reads a CSV row, stamps it with time.Now(), and calls SendTelemetry (unary gRPC). On ResourceExhausted (queue full), the streamer retries with exponential backoff + jitter; if all retries fail, the message is dropped with a counter increment.
 
@@ -110,18 +109,23 @@ flowchart LR
 
 5. Recover — If no ack arrives within ACK_TIMEOUT_SECONDS (default 30s), a background goroutine moves the message from pending back to the FIFO. This handles collector crashes, InfluxDB failures, and lost ack RPCs.
 
-6. Query — Reviewers hit GET /metrics/... on the Gin REST API, which translates to a Flux/SQL query against InfluxDB. OpenAPI spec is auto-generated via swag init and served at /swagger/.
+6. Query — Reviewers hit GET /api/v1/gpus or api/v1/gpus/{gpu_id}/telemetry on the Gin REST API, which translates to a Flux/SQL query against InfluxDB. OpenAPI spec is auto-generated via swag init and served at /swagger/.
 
 
 2.3 Why this shape?
 
 Producer/consumer decoupling via gRPC server: streamers and collectors have independent lifecycles and scale independently. A streamer pod restart doesn't disrupt collectors and vice versa.
-Single queue replica (for now): simpler reasoning about ordering and pending state. Production HA path is documented in Section 8.
-Stateless producers/consumers: only the queue and InfluxDB are stateful. Adding/removing streamer or collector replicas requires no coordination.
-At-least-once + idempotent sink: InfluxDB writes are idempotent on (measurement, tag-set, timestamp), so duplicate processing during requeue is harmless. This is what makes at-least-once cheap in this system.
-Init containers enforce startup ordering: streamers wait on the queue's health endpoint before sending; collectors wait on InfluxDB readiness before consuming. This avoids a thundering-herd of failed RPCs at cluster bootstrap and removes flakiness from the new-hire install experience.
 
-3. Component Breakdown
+Single queue replica (for now): simpler reasoning about ordering and pending state. Production HA path is documented in Section 8.
+
+Stateless producers/consumers: only the queue and InfluxDB are stateful. Adding/removing streamer or collector replicas requires no coordination.
+
+At-least-once + idempotent sink: InfluxDB writes are idempotent on (measurement, tag-set, timestamp), so duplicate processing during requeue is harmless. This is what makes at-least-once cheap in this system.
+
+Init containers enforce startup ordering: streamers wait on the queue's readiness before sending; collectors wait on InfluxDB readiness before consuming. This avoids a thundering-herd of failed RPCs at cluster bootstrap and removes flakiness from the new install experience.
+
+
+<details><summary><b><h2>3. Component deep Breakdown</h2></b></summary>
 
 3.1 Streamer (Producer)
 
@@ -157,22 +161,24 @@ Role: A standalone gRPC service that buffers messages between producers and cons
 
 Three RPCs:
 
+| RPC | Direction | Type | Purpose |
+| :--- | :--- | :--- | :--- |
+| `SendTelemetry` | Streamer $\rightarrow$ Queue | Unary | Enqueue a message; returns `ResourceExhausted` if at capacity |
+| `CollectTelemetry` | Queue $\rightarrow$ Collector | Server-stream | Long-lived stream, queue pushes messages as they arrive |
+| `AckTelemetry` | Collector $\rightarrow$ Queue | Unary | Confirm successful processing; queue removes from pending + BoltDB |
 
-RPC	Direction	Type	Purpose
-SendTelemetry	Streamer → Queue	Unary	Enqueue a message; returns ResourceExhausted if at capacity
-CollectTelemetry	Queue → Collector	Server-stream	Long-lived stream, queue pushes messages as they arrive
-AckTelemetry	Collector → Queue	Unary	Confirm successful processing; queue removes from pending + BoltDB
 
 Internal state (single struct, mutex-protected):
 
 
-Copy Code
+```
 messages      []message              // FIFO of ready-to-dispatch messages
 pending       map[MessageId]pending  // dispatched but not yet acked
 cond          *sync.Cond             // wakes waiting collectors
 db            *bbolt.DB              // durable backing store
 maxQueueSize  int                    // backpressure threshold
 ackTimeout    time.Duration          // when to requeue unacked
+```
 
 The queue is detailed further in Section 5 (Custom Queue Deep Dive). This component breakdown only sketches the responsibility.
 
@@ -193,7 +199,6 @@ Role: Drain the queue, transform messages into InfluxDB points, write them, and 
 
 Implementation highlights:
 
-
 Opens a long-lived CollectTelemetry stream on startup; if the stream errors or the queue restarts, the gRPC client reconnects.
 For each received message:
 Parses LabelsRaw into a tag map.
@@ -206,19 +211,16 @@ The ack discipline is the single most important rule in this component: ack must
 
 Relies on the gRPC client's built-in reconnection (exponential backoff connection management via grpc.NewClient). On stream error, the collector exits and is restarted by Kubernetes; on transient connection issues, the underlying gRPC connection auto-recovers without intervention.
 
-
-
-
 <details>
 <summary><b>Why synchronous writes (not batched)?</b></summary>
 
-InfluxDB v3 accepts batched writes for higher throughput, but batching complicates ack semantics: if a 100-point batch fails, which MessageIds do you skip-ack? You'd need to either ack none (re-process all 100, more duplicates) or track per-point success (complex). For this exercise, synchronous one-point writes keep the ack story clean. Batching is a Section 8 production improvement.
+InfluxDB v2 accepts batched writes for higher throughput, but batching complicates ack semantics: if a 100-point batch fails, which MessageIds do you skip-ack? You'd need to either ack none (re-process all 100, more duplicates) or track per-point success (complex). For this exercise, synchronous one-point writes keep the ack story clean. Batching is a Section 8 production improvement.
 
 
 </details>
 
 
-3.4 InfluxDB v3
+3.4 InfluxDB
 
 Role: Durable time-series store for historical analysis.
 
@@ -274,13 +276,14 @@ Mixing read and write paths in the same pod creates coupled failure domains: a q
 
 </details>
 
-4. Key Design Decisions & Trade-offs
+</details>
+
+<b><h2>4. Key Design Decisions & Trade-offs</h2></b>
 
 This section captures the four most consequential choices made during the exercise, the alternatives considered, and the reasoning. Each decision lists the trade-off accepted — there is no "free" choice.
 
 
-
-4.1 Custom Queue: gRPC server vs shared library
+<h5>4.1 Custom Queue: gRPC server vs shared library</h5>
 
 Decision: Build the queue as a standalone gRPC service with a dedicated pod, not as a Go library imported into streamer/collector binaries.
 
@@ -290,13 +293,14 @@ Alternative considered: A shared library exposing in-process channels or ring bu
 
 Why gRPC server won:
 
+| Dimension | Shared library | gRPC server (chosen) |
+| :--- | :--- | :--- |
+| **Lifecycle coupling** | Streamer crash takes down queue state | Independent pod lifecycles |
+| **Scaling model** | Streamer and collector counts must match (1:1 in same pod) | Scale producers and consumers independently |
+| **Failure isolation** | One process owns everything; OOM in any component kills the queue | Queue isolated; client crashes don't lose enqueued data |
+| **Language reach** | All clients must be Go (or use CGo) | Any gRPC-supported language for future clients |
+| **Deployment** | Tightly coupled rollouts | Independent rolling updates per component |
 
-Dimension	Shared library	gRPC server (chosen)
-Lifecycle coupling	Streamer crash takes down queue state	Independent pod lifecycles
-Scaling model	Streamer and collector counts must match (1:1 in same pod)	Scale producers and consumers independently
-Failure isolation	One process owns everything; OOM in any component kills the queue	Queue isolated; client crashes don't lose enqueued data
-Language reach	All clients must be Go (or use CGo)	Any gRPC-supported language for future clients
-Deployment	Tightly coupled rollouts	Independent rolling updates per component
 
 Trade-off accepted: Network hop and gRPC serialization cost (sub-millisecond at this scale, well under the per-message budget). For 10×10 replicas pushing telemetry every few seconds, this overhead is negligible compared to the operational benefits.
 
@@ -310,9 +314,9 @@ Both keep streamers and collectors co-located on the same node, defeating the el
 </details>
 
 
-4.2 Time-Series Store: InfluxDB vs Prometheus
+<h5>4.2 Time-Series Store: InfluxDB vs Prometheus</h5>
 
-Decision: Use InfluxDB v3 as the persistence layer.
+Decision: Use InfluxDB as the persistence layer.
 
 
 Alternative considered: Prometheus.
@@ -321,9 +325,9 @@ Alternative considered: Prometheus.
 Why InfluxDB won:
 
 
-Long-term retention. Prometheus is a monitoring system, not a long-term store. Its local TSDB targets ~15 days of retention; longer storage requires Thanos, Cortex, or remote-write to a separate system — extra moving parts. InfluxDB v3 is designed for unbounded historical retention out of the box, which directly supports the stated use case of post-incident analysis ("when did the GPU go down, and was the AI checkpoint successfully migrated?").
+Long-term retention. Prometheus is a monitoring system, not a long-term store. Its local TSDB targets ~15 days of retention; longer storage requires Thanos, Cortex, or remote-write to a separate system — extra moving parts. InfluxDB is designed for unbounded historical retention out of the box, which directly supports the stated use case of post-incident analysis ("when did the GPU go down, and was the AI checkpoint successfully migrated?").
 
-Push vs pull model fit. Prometheus pulls; our streamers push. Adapting the pipeline to Prometheus would require either an exporter sidecar per streamer or pushing through Pushgateway — which the Prometheus team explicitly recommends only for batch jobs, not continuous streams.
+Push vs pull model fit. Prometheus pulls; our streamers push. Adapting the pipeline to Prometheus would require either an exporter sidecar per queue or pushing through Pushgateway — which the Prometheus team explicitly recommends only for batch jobs, not continuous streams.
 
 Idempotent writes. InfluxDB upserts on (measurement, tag-set, timestamp). This is the property that makes at-least-once delivery safe in our queue — duplicates are harmless. Prometheus, by contrast, treats out-of-order or duplicate samples as a hard error (out of order sample rejection). Our queue's requeue mechanism would produce these errors regularly.
 
@@ -334,7 +338,7 @@ Trade-off accepted: Prometheus has a richer alerting ecosystem (PromQL, Alertman
 
 
 
-4.3 Collector: Custom Go service vs Telegraf
+<h5>4.3 Collector: Custom Go service vs Telegraf</h5>
 
 Decision: Build a custom Go collector instead of using Telegraf.
 
@@ -370,7 +374,7 @@ Yes. If the collector were a pure pass-through with no transformation logic and 
 </details>
 
 
-4.4 REST Framework: Gin vs net/http
+<h5>4.4 REST Framework: Gin vs net/http</h5>
 
 Decision: Use Gin for the read API.
 
@@ -390,22 +394,23 @@ Request binding and validation. c.ShouldBindQuery and struct-tag validation elim
 
 Trade-off accepted: A third-party dependency. Gin is mature, widely adopted, and actively maintained — the dependency risk is low. For an API surface with only 2 endpoints, the productivity gain is modest, but the OpenAPI auto-generation alone justifies the choice given the explicit requirement.
 
-5. Custom Queue Deep Dive
+
+<b><h2>5. Custom Queue Deep Dive</h2></b>
 
 The custom message queue is the centerpiece of this exercise. It is a single-replica gRPC service that buffers messages between producers and consumers, providing bounded memory, at-least-once delivery, and crash durability while remaining simple enough to reason about, test, and deploy.
 
 
 This section walks through the queue's concurrency model, then the three production-readiness features that were explicitly designed in: backpressure, acknowledgement, and persistence.
 
-
+<details>
+<summary>Features of the queue</summary>
 
 5.1 Concurrency Model
 
 The queue's correctness depends on a small, deliberate concurrency primitive set: one mutex, one condition variable, one map, one slice. Everything else is built on top.
 
 
-go
-Copy Code
+```
 type TelemetryQueueServer struct {
     mu           sync.Mutex
     messages     []message              // FIFO of ready-to-dispatch
@@ -416,6 +421,7 @@ type TelemetryQueueServer struct {
     maxQueueSize int
     ackTimeout   time.Duration
 }
+```
 
 The locking discipline:
 
@@ -429,77 +435,40 @@ Why sync.Cond over channels:
 
 A channel-based design (chan message) was considered and rejected. The reasoning:
 
+| Property | Channels | sync.Cond (chosen) |
+| :--- | :--- | :--- |
+| **Single-reader semantics** | Natural | Natural |
+| **Multiple-reader fan-out** | Natural | Requires careful `Signal()` vs `Broadcast()` |
+| **Inspecting queue state (size, peek)** | Impossible — channels are opaque | Trivial — slice is directly accessible |
+| **Conditional wake (close + non-empty)** | Requires `select` with sentinel | Single `for` loop with explicit predicate |
+| **Persistence integration** | Awkward (channel buffer is opaque) | Natural (slice is iterable for crash recovery) |
 
-Property	Channels	sync.Cond (chosen)
-Single-reader semantics	Natural	Natural
-Multiple-reader fan-out	Natural	Requires careful Signal() vs Broadcast()
-Inspecting queue state (size, peek)	Impossible — channels are opaque	Trivial — slice is directly accessible
-Conditional wake (close + non-empty)	Requires select with sentinel	Single for loop with explicit predicate
-Persistence integration	Awkward (channel buffer is opaque)	Natural (slice is iterable for crash recovery)
 
 The deciding factor was persistence and observability. With BoltDB recovery and high-water-mark logging, we need to inspect queue depth and iterate over pending messages — operations that are first-class on a slice but impossible on a channel.
-
-
-The collector wait pattern:
-
-
-go
-Copy Code
-s.mu.Lock()
-for len(s.messages) == 0 && !s.closed {
-    s.cond.Wait()  // releases mu while waiting; reacquires on wake
-}
-if s.closed && len(s.messages) == 0 {
-    s.mu.Unlock()
-    return nil  // graceful shutdown
-}
-msg := s.messages[0]
-s.messages = s.messages[1:]
-// ... move to pending, assign MessageId ...
-s.mu.Unlock()
-// stream.Send happens OUTSIDE the lock
-
-This pattern guarantees:
-
-
-No spurious wake bugs: the for loop re-checks the predicate after every wake.
-No lost wakeups: producers always cond.Signal() after appending to messages and before releasing mu.
-No collector starvation across replicas: Signal() wakes one collector; the next message wakes the next collector. With multiple collectors, they round-robin naturally as messages arrive.
-Clean shutdown: setting closed = true and cond.Broadcast() wakes all collectors, who then exit when they see closed && empty.
 
 
 5.2 Backpressure & Queue Size Limits
 
 Problem: Without bounds, an unbounded messages slice grows until the queue pod OOMs and Kubernetes restarts it — losing all in-memory state and ack tracking.
 
-
 Decision: Reject-on-full with gRPC ResourceExhausted, push the backoff burden upstream to the streamer.
-
-
-Three strategies considered
-
-Strategy	Behavior on full	Why rejected (or chosen)
-Block	Producer's RPC hangs until space frees	Causes streamer-side timeout cascades; gRPC deadlines fire; threads pile up; failure mode is ambiguous (slow vs dead)
-Drop oldest	Discard head of queue, accept new	Silent data loss; producer thinks it succeeded; hard to alert on; violates the "bounded loss with visibility" principle
-Reject (chosen)	Return ResourceExhausted; producer decides	Explicit signal upstream; producer can backoff or buffer; saturation is observable via reject counter
 
 How it works
 
 On SendTelemetry, after acquiring mu:
 
-
+```
 go
-Copy Code
 if len(s.messages) >= s.maxQueueSize {
     s.rejectedCount++
     return &pb.TelemetryResponse{Success: false, Message: "queue full"},
         status.Error(codes.ResourceExhausted, "queue full")
 }
-
+```
 The streamer handles ResourceExhausted with exponential backoff + full jitter (100ms → 5s, max 5 retries). After exhausting retries, the message is dropped with a counter increment. This means:
 
 
-Bounded memory on the queue (hard cap at QUEUE_MAX_SIZE, default 10,000).
+Bounded memory on the queue (hard cap at QUEUE_MAX_SIZE, default 50,000).
 Bounded retry storms on the streamer (max 5 attempts × jittered backoff).
 Visible saturation via rejectedCount metric and high-water-mark log line at 80% capacity.
 
@@ -508,18 +477,9 @@ Trade-off accepted
 Producer-side complexity (retry/backoff logic) in exchange for queue-side safety. This is the right direction — pushing backpressure upstream is the standard pattern in production message systems (Kafka producers do the same on not_enough_replicas).
 
 
-<details>
-<summary><b>Why not block with a timeout?</b></summary>
-
-A blocking-with-timeout strategy (e.g., cond.Wait() for up to 1s, then return) was considered. It was rejected because it complicates the gRPC deadline story: the producer already has its own context deadline, and a server-side wait introduces a second deadline that can interact unpredictably. Reject-immediately keeps deadlines linear and easy to reason about.
-
-
-</details>
-
-
 5.3 At-Least-Once Delivery (Acknowledgement + Requeue)
 
-Problem: Without ack, a collector that crashes after receiving a message but before writing to InfluxDB silently loses that message. The "telemetry every second, loss is fine" intuition breaks down precisely when it matters: during incidents, when failures correlate with high traffic.
+Problem: Without ack, a collector that crashes after receiving a message but before writing to InfluxDB silently loses that message. 
 
 
 Decision: Implement at-least-once with a pending map and a timeout-driven requeue loop. InfluxDB's idempotent writes (upsert on (measurement, tag-set, timestamp)) make duplicate processing harmless.
@@ -527,7 +487,7 @@ Decision: Implement at-least-once with a pending map and a timeout-driven requeu
 
 Message lifecycle
 
-Copy Code
+```
                   ┌─────────────────────┐
    SendTelemetry  │                     │
    ─────────────▶ │   messages slice    │
@@ -546,6 +506,7 @@ Copy Code
                              ▼
                           deleted
                           (also from BoltDB)
+```
 
 The three RPCs and their contracts
 
@@ -556,34 +517,14 @@ AckTelemetry	Idempotent: ack-of-unknown-id returns success (message was already 
 
 The collector-side discipline
 
-The single most important rule in the entire system:
-
-
-
 Ack is sent only after the InfluxDB write succeeds. Never before.
-
-
-
-go
-Copy Code
-writeErr := writeAPI.WritePoint(ctx, point)
-if writeErr != nil {
-    // Do NOT ack. The queue will requeue after timeout.
-    log.Printf("write failed for msg=%s, will be requeued", msg.MessageId)
-    continue
-}
-ackMessage(ctx, client, msg.MessageId)  // only after success
-
-Reversing this order silently breaks at-least-once. This is enforced by code review and tested explicitly with a mocked failing InfluxDB.
-
 
 The requeue loop
 
 A background goroutine scans pending every 10 seconds:
 
-
+```
 go
-Copy Code
 for id, p := range s.pending {
     if time.Since(p.sentAt) > s.ackTimeout {
         delete(s.pending, id)
@@ -592,9 +533,7 @@ for id, p := range s.pending {
         s.cond.Signal()
     }
 }
-
-Why timeout-driven instead of explicit nack? A nack RPC (collector explicitly says "I failed") was considered. It was rejected because the most common failure modes — collector crash, network partition, OOM — leave no opportunity for the collector to send a nack. The timeout handles all failure modes uniformly. An explicit nack would be a latency optimization for the rare case where the collector is alive but processing failed; not worth the extra surface area.
-
+```
 
 Why duplicates are safe
 
@@ -606,12 +545,14 @@ If the sink were not idempotent (e.g., a counter that increments per message), a
 
 Failure scenarios covered
 
-Failure	Behavior	Outcome
-Collector crashes mid-processing	No ack → 30s timeout → requeued to another collector	✅ No loss
-InfluxDB write fails	Collector skips ack → requeued	✅ No loss
-Ack RPC fails (write succeeded)	Requeued → reprocessed → idempotent duplicate write	✅ No loss, no observable effect
-Collector slower than 30s per message	Premature requeue → duplicates	⚠️ Tune ACK_TIMEOUT_SECONDS
-Queue pod restart	In-memory pending lost — but messages restored from BoltDB	✅ See 5.4
+| Failure | Behavior | Outcome |
+| :--- | :--- | :--- |
+| **Collector crashes mid-processing** | No ack $\rightarrow$ 30s timeout $\rightarrow$ requeued to another collector | ✅ No loss |
+| **InfluxDB write fails** | Collector skips ack $\rightarrow$ requeued | ✅ No loss |
+| **Ack RPC fails (write succeeded)** | Requeued $\rightarrow$ reprocessed $\rightarrow$ idempotent duplicate write | ✅ No loss, no observable effect |
+| **Collector slower than 30s per message** | Premature requeue $\rightarrow$ duplicates | ⚠️ Tune `ACK_TIMEOUT_SECONDS` |
+| **Queue pod restart** | In-memory pending lost — but messages restored from BoltDB | ✅ See 5.4 |
+
 
 
 5.4 Persistence (BoltDB)
@@ -626,28 +567,16 @@ Why BoltDB
 
 The choice was made on three criteria — operational simplicity, pure-Go compatibility, and fit-for-purpose.
 
-
-Criterion	BoltDB (chosen)	BadgerDB	SQLite
-Pure Go (no CGO)	✅ Yes	✅ Yes	❌ Requires CGO
-Embedded, single file	✅ One file	One directory	✅ One file
-Configuration overhead	Zero	Several tunables	Schema migrations
-Write pattern fit	B+tree, ACID, balanced read/write	LSM tree, optimized for write-heavy	B-tree, ACID, relational
-Maturity	bbolt fork actively maintained by etcd team	Active	Very mature
-Container image size	Tiny	Larger	Adds CGO toolchain
-
 For this queue's workload — balanced enqueue/ack with modest throughput — BoltDB's B+tree fits cleanly. It also keeps the container image small and the build reproducible (no CGO).
 
-
-Honest framing: the choice was made on operational simplicity, not on benchmarking against alternatives. For a higher-throughput production queue, BadgerDB's LSM-tree design would be worth evaluating because LSM trees absorb write bursts more gracefully. At this exercise's scale, BoltDB is sufficient.
-
+The choice was made on operational simplicity, not on benchmarking against alternatives. For a higher-throughput production queue, BadgerDB's LSM-tree design would be worth evaluating because LSM trees absorb write bursts more gracefully. At this exercise's scale, BoltDB is sufficient.
 
 Persistence model
 
 A single bucket, messages, with MessageId (or a sequence number for not-yet-dispatched messages) as the key and JSON-encoded message as the value.
 
-
+```
 go
-Copy Code
 // On SendTelemetry — persist BEFORE acknowledging producer
 err := s.db.Update(func(tx *bbolt.Tx) error {
     b := tx.Bucket([]byte("messages"))
@@ -660,14 +589,13 @@ err := s.db.Update(func(tx *bbolt.Tx) error {
 s.db.Update(func(tx *bbolt.Tx) error {
     return tx.Bucket([]byte("messages")).Delete([]byte(messageId))
 })
-
+```
 Crash recovery
 
 On startup, before serving any RPCs:
 
-
+```
 go
-Copy Code
 s.db.View(func(tx *bbolt.Tx) error {
     return tx.Bucket([]byte("messages")).ForEach(func(k, v []byte) error {
         var m message
@@ -676,6 +604,7 @@ s.db.View(func(tx *bbolt.Tx) error {
         return nil
     })
 })
+```
 
 After recovery, the queue resumes accepting and dispatching as if nothing happened. In-flight pending state is intentionally not persisted — on restart, those messages reappear in messages (because they were never deleted from BoltDB; only ack triggers deletion), and they will be re-dispatched and reprocessed. Idempotent InfluxDB writes make this safe.
 
@@ -694,7 +623,7 @@ Problem: A SIGTERM during message processing can leave dispatched-but-unacked me
 Decision: Coordinated shutdown with three phases.
 
 
-Copy Code
+```
 Signal received (SIGTERM/SIGINT)
         │
         ▼
@@ -717,6 +646,7 @@ Phase 3: Stop background work
         │
         ▼
 Final stats logged: enqueued, rejected, acked, requeued, queue_remaining, pending_remaining
+```
 
 The key property: no message is lost during shutdown. Messages still in messages are in BoltDB; messages in pending are also in BoltDB (only acks delete them); both reload on next startup.
 
@@ -735,27 +665,18 @@ Prometheus metrics endpoint	Counters are logged, not scraped; observability road
 Message replay / retention after ack	Once acked, messages are deleted; no historical replay capability	Section 8
 
 These are intentional scope cuts, not oversights. Each has a clear path forward and is documented in the production roadmap.
-
-6. Operational Concerns
+</details>
+<b><h2>6. Operational Concerns</h2></b>6
 
 6.1 Deployment
 
 The entire system is deployed via a single Helm chart to a kind cluster on macOS. All components run in the gpu-telemetry namespace.
 
-
+```
 bash
-Copy Code
-# One-command install (see INSTALL.md for prerequisites)
+# see INSTALL.md for prerequisites
 helm install gpu-telemetry ./charts/gpu-telemetry -n gpu-telemetry --create-namespace
-
-Why a single chart instead of subcharts:
-
-
-The chart structure was optimized for the new-hire install experience explicitly called out in the exercise. A single helm install brings up streamers, queue, collectors, InfluxDB, and the REST API atomically — no ordering, no sequencing, no per-component values files.
-
-
-The trade-off is that all components version together. For production, splitting into an umbrella chart with subcharts (one per component) would let the queue, collectors, streamers, and InfluxDB be released and reused independently. Documented in Section 8.
-
+```
 
 6.2 Configuration
 
@@ -814,11 +735,11 @@ The queue exposes a TCP-reachable gRPC port that doubles as its readiness signal
 
 
 
-7. Testing Strategy
+<b><h2>7. Testing Strategy</h2></b>
 
 7.1 What is covered
 
-Unit tests cover the core queue logic and gRPC handlers at ~34% line coverage:
+Unit tests cover the core queue logic and gRPC handlers at ~51% line coverage:
 
 
 SendTelemetry — happy path, nil request, server-closed, queue-full backpressure rejection.
@@ -827,13 +748,10 @@ AckTelemetry — known message, unknown message (idempotent success), missing me
 Concurrency invariants — multiple producers + multiple consumers, verifying no message is lost or double-dispatched under contention.
 State transitions — enqueue → pending → ack → deletion; enqueue → pending → timeout → requeue.
 
-gRPC streaming is tested using mock streams that implement the TelemetryService_CollectTelemetryServer interface, allowing assertions on dispatched messages without a real network.
+gRPC streaming is tested using mock streams that implement the TelemetryServiceClient,TelemetryService_CollectTelemetryClient interface, allowing assertions on dispatched messages without a real network.
 
 
 7.2 What is not covered
-
-Honestly framed:
-
 
 End-to-end integration with real InfluxDB — currently smoke-tested manually via the kind deployment, not automated.
 BoltDB persistence corner cases — partial writes, disk full, file corruption.
@@ -843,7 +761,7 @@ Quantitative load testing — throughput, p99 latency, backpressure behavior und
 
 7.3 Coverage framing
 
-The 34% number reflects deliberate prioritization: core queue logic and gRPC handlers are tested; integration and persistence layers are next. With more time, the next investments would be:
+The 51% number reflects deliberate prioritization: core queue logic and gRPC handlers are tested; integration and persistence layers are next. With more time, the next investments would be:
 
 
 Integration tests in a kind cluster, exercising the full data path with assertion on InfluxDB content.
@@ -852,7 +770,7 @@ Property-based tests for queue invariants (no loss, FIFO ordering within a produ
 Load tests with ghz (gRPC benchmarking) to characterize throughput and latency curves.
 
 
-8. Known Limitations & Production Roadmap
+<b><h2>8. Known Limitations & Production Roadmap</h2></b>
 
 The current implementation prioritizes correctness, observability of state, and operational simplicity over production-grade scalability and HA. The gaps are deliberate. This section enumerates them with the path forward.
 
@@ -927,6 +845,6 @@ Messages are deleted on ack with no historical retention at the queue layer (Inf
 
 
 
-9. Quickstart
+<b><h2>9. Quickstart</h2></b>
 
 See `INSTALL.md` for full instructions.
