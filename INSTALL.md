@@ -134,7 +134,9 @@ Step 1: Port-forward the API service
 
 The telemetry API is exposed as a ClusterIP service. To access it from your Mac, run:
 
+```bash
 kubectl port-forward svc/telemetry-apis 8080:8080 -n gpu-telemetry
+```
 
 Keep this terminal running.
 
@@ -187,29 +189,29 @@ make test-apis               # Test only the API component
 
 Integration tests (requires Podman/Docker):
 
+```bash
 make test-integration
+```
 
 Code coverage:
 
-
+```bash
 make coverage                # Generate coverage report
 make coverage-html           # Generate HTML report and open in browser
 make coverage-by-package     # Coverage broken down by package
 make coverage-threshold      # Fail if coverage < 70%
+```
 
 Stress tests:
-
+```bash
 make test-stress             # 10 producers + 10 collectors
 make test-stress-bench       # With CPU & memory profiling
+```
 
-Full CI pipeline:
-
-make ci                      # deps + lint + coverage + threshold check
 
 View available targets:
 
 make help
-
 
 <b><h3>7. Generating the OpenAPI Spec</h3></b>
 
@@ -217,8 +219,9 @@ The REST API's OpenAPI specification is auto-generated from Go annotations using
 
 
 Generate the spec:
-
+```bash
 make openapi
+```
 
 This produces:
 
@@ -236,17 +239,29 @@ Note: The generated spec follows OpenAPI 2.0 (formerly Swagger 2.0). If you need
 
 To remove the telemetry pipeline:
 
-helm uninstall gpu-telemetry -n gpu-telemetry
+# Uninstall the release (keeps PVCs by default)
+```bash
+helm -n gpu-telemetry uninstall gpu-telemetry
+```
+
+# Also remove PVCs (data wipe)
+```bash
+kubectl -n gpu-telemetry delete pvc --all
+```
+
+# Nuke the namespace
+```bash
 kubectl delete namespace gpu-telemetry
+```
 
 To delete the KinD cluster entirely:
-
+```bash
 kind delete cluster --name kind-cluster
-
+```
 To clean local image archives:
-
+```bash
 make clean
-
+```
 
 <b><h3>9. Troubleshooting</h3></b>
 
@@ -305,25 +320,8 @@ Cannot access Swagger at http://localhost:8080
 Ensure kubectl port-forward svc/telemetry-apis 8080:8080 -n gpu-telemetry is running in a separate terminal. If port 8080 is already in use, choose a different local port:
 
 
-bash
-Copy Code
+```bash
 kubectl port-forward svc/telemetry-apis 9090:8080 -n gpu-telemetry
 # Then open http://localhost:9090/swagger/index.html
-
-
-Quick Reference
-
-Action	Command
-Full deployment	make all
-List pods	kubectl get pods -n gpu-telemetry
-Access Swagger	kubectl port-forward svc/telemetry-apis 8080:8080 -n gpu-telemetry
-Run unit tests	make test
-Run stress tests	make test-stress
-Generate OpenAPI spec	make openapi
-Uninstall	helm uninstall gpu-telemetry -n gpu-telemetry
-Delete cluster	kind delete cluster --name kind-cluster
-
-
-For further assistance or customization, please contact the project maintainers.
-
+```
 If you need further assistance or customization, please reach out.
